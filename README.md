@@ -1,88 +1,88 @@
 # mea-skills
 
-Kumpulan skill untuk membantu agent menulis pesan commit, menyiapkan deskripsi MR/PR, dan menangani findings Trivy secara bertahap. Installer menyalin skill ke lokasi pengguna untuk VS Code (Copilot/Codex), Antigravity IDE, atau keduanya. Mendukung macOS, Linux, dan Windows.
+A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for VS Code (Copilot/Codex), Antigravity IDE, or both. Supports macOS, Linux, and Windows.
 
-## Mulai
+## Getting Started
 
-Siapkan **Node.js 20 atau lebih baru** dan **pnpm**, lalu jalankan dari root repository ini:
+Ensure **Node.js 20 or later** and **pnpm** are installed, then run from the root of this repository:
 
 ```sh
-pnpm run install:skill
+pnpm run install:skills
 ```
 
-Installer memakai modul bawaan Node.js dan tidak membutuhkan `pnpm install` atau dependency npm tambahan. Perintah yang sama dapat digunakan di terminal macOS/Linux maupun PowerShell/Command Prompt pada Windows.
+The installer uses Node.js built-in modules and does not require running `pnpm install` or installing external npm dependencies. The same command works across macOS/Linux terminals and Windows PowerShell or Command Prompt.
 
-## Alur instalasi
+## Installation Flow
 
-1. Pilih target:
+1. Choose a target:
 
    ```text
-   1. Keduanya — VS Code dan Antigravity (default)
+   1. Both — VS Code and Antigravity IDE (default)
    2. VS Code — Copilot/Codex
    3. Antigravity IDE
-   0. Batal
+   0. Cancel
    ```
 
-2. Periksa path untuk setiap target. Tekan **Enter** untuk memakai default atau ketik path custom. Installer menampilkan path pengguna yang sebenarnya.
-3. Tinjau rencana lengkap: daftar skill, tujuan salinan, dan perubahan yang akan dilakukan.
-4. Jawab konfirmasi **`[Y/n]`**. Enter atau `y` menyetujui; `n` membatalkan. Penulisan dimulai setelah konfirmasi ini.
+2. Review the destination path for each target. Press **Enter** to accept the default, or enter a custom path. The installer displays the resolved user path.
+3. Review the complete installation plan: list of skills, copy destinations, and actions to be performed.
+4. Confirm with **`[Y/n]`**. Pressing Enter or `y` proceeds; `n` cancels. File operations begin only after this confirmation.
 
-Pilihan `0`, penolakan konfirmasi, atau input yang berakhir sebelum konfirmasi tidak mengubah folder tujuan. Installer menyalin semua folder di root repository yang memiliki `SKILL.md`, termasuk file pendukung seperti `scripts/` dan `references/`.
+Selecting `0`, rejecting the prompt, or terminating input before confirmation leaves all destination directories untouched. The installer copies every folder at the repository root containing a `SKILL.md` file, including supporting resources such as `scripts/` and `references/`.
 
-### Lokasi default
+### Default Locations
 
 | Target | macOS / Linux | Windows |
 | --- | --- | --- |
 | VS Code — Copilot/Codex | `~/.agents/skills` | `%USERPROFILE%\.agents\skills` |
 | Antigravity IDE | `~/.gemini/config/skills` | `%USERPROFILE%\.gemini\config\skills` |
 
-Folder personal `~/.agents/skills` didukung oleh [VS Code Agent Skills](https://code.visualstudio.com/docs/agent-customization/agent-skills) dan [Codex](https://learn.chatgpt.com/docs/build-skills). Lokasi Antigravity mengikuti [dokumentasi skill IDE](https://www.antigravity.google/docs/skills?tab=ide).
+The personal `~/.agents/skills` directory is supported by [VS Code Agent Skills](https://code.visualstudio.com/docs/agent-customization/agent-skills) and [Codex](https://learn.chatgpt.com/docs/build-skills). The Antigravity location follows the [IDE skills documentation](https://www.antigravity.google/docs/skills?tab=ide).
 
-Untuk path custom, installer menerima notasi `~/...`, `$HOME/...`, `%USERPROFILE%\...`, serta path bertanda kutip yang mengandung spasi. Path custom menentukan lokasi salinan; installer tidak otomatis mendaftarkan folder sembarang ke IDE. Pilih lokasi yang didukung agent atau atur discovery lokasinya melalui konfigurasi IDE yang tersedia.
+For custom paths, the installer accepts `~/...`, `$HOME/...`, `%USERPROFILE%\...`, as well as quoted paths containing spaces. Custom paths specify the copy destination; the installer does not automatically register arbitrary directories with the IDE. Choose a location natively supported by your agent or configure custom discovery paths in your IDE settings.
 
-### Pembaruan dan backup
+### Updates and Backups
 
-Jalankan kembali `pnpm run install:skill` setelah memperbarui isi repository. Skill dengan isi identik dilewati. Skill lain yang sudah ada pada tujuan tetap dipertahankan.
+Run `pnpm run install:skills` again whenever repository contents are updated. Skills with identical contents are skipped. Other existing skills at the destination remain untouched.
 
-Sebelum mengganti skill yang berbeda isinya, installer menyimpan versi sebelumnya di folder backup di samping folder tujuan `skills`:
+Before replacing a skill whose contents have changed, the installer backs up the previous version into a backup folder alongside the destination `skills` directory:
 
 ```text
-<parent-folder-tujuan>/.mea-skills-backups/<run-id>/<target-id>/<nama-skill>/
+<destination-parent-folder>/.mea-skills-backups/<run-id>/<target-id>/<skill-name>/
 ```
 
-Contohnya, backup untuk tujuan `~/.agents/skills` berada di `~/.agents/.mea-skills-backups/`. Backup berada di luar root skill agar tidak ikut ditemukan sebagai skill tambahan. Periksa lokasi backup yang ditampilkan installer jika ingin mengambil kembali versi lama.
+For example, backups for the `~/.agents/skills` target are stored in `~/.agents/.mea-skills-backups/`. Backups reside outside the skill root directory so they are not inadvertently discovered as active skills. Check the backup path printed by the installer if you need to restore an earlier version.
 
-## Skill yang tersedia
+## Available Skills
 
-Buka chat agent pada repository kerja, kemudian pilih atau sebut nama skill sesuai antarmuka IDE.
+Open the agent chat in your working repository, then select or invoke the skill according to your IDE's interface.
 
-| Skill | Contoh pemanggilan | Kegunaan |
+| Skill | Example Invocation | Purpose |
 | --- | --- | --- |
-| [commit-message-generator](commit-message-generator/SKILL.md) | `/commit-message-generator with desc` | Membaca seluruh staged diff dan aturan proyek, lalu menyarankan subject commit beserta body berbentuk bullet. Alias `/commit with desc` juga dijelaskan dalam skill. |
-| [mr-description](mr-description/SKILL.md) | `/mr-description 6` | Menyiapkan judul dan deskripsi MR/PR berbahasa Inggris dari N commit terakhir, termasuk daftar ID commit. Tanpa angka, default N adalah **1**. |
-| [trivy-porter](trivy-porter/SKILL.md) | `/trivy-porter` | Memilih scan `fs` atau `image`, flag dan severity, lalu menjelaskan serta memperbaiki findings dalam batch. Default satu finding per batch. |
-| trivy-porter — lanjutkan | `/trivy-porter continue` | Memuat sesi sebelumnya, memberi ringkasan, dan meminta jumlah finding untuk batch berikutnya. |
+| [commit-message-generator](commit-message-generator/SKILL.md) | `/commit-message-generator with desc` | Analyzes staged diffs and project rules to suggest a conventional commit header and bulleted body. The `/commit with desc` alias is also supported. |
+| [mr-description](mr-description/SKILL.md) | `/mr-description 6` | Generates an English MR/PR title and structured description from the last N commits, including commit IDs. Defaults to **1** commit if N is omitted. |
+| [trivy-porter](trivy-porter/SKILL.md) | `/trivy-porter` | Interactively selects `fs` or `image` scans, flags, and severities, then explains findings in Indonesian and fixes them in batches. Defaults to one finding per batch. |
+| trivy-porter — continue | `/trivy-porter continue` | Resumes a previous session, provides a summary, and prompts for the batch size for the next iteration. |
 
-`commit-message-generator` memerlukan perubahan yang sudah staged. `trivy-porter` melakukan staging **seluruh perubahan repository** setelah setiap batch dan menyertakan saran commit melalui `commit-message-generator with desc`; ini dapat mencakup perubahan yang sudah ada atau batch sebelumnya yang belum di-commit. Commit tetap dilakukan oleh pengguna.
+`commit-message-generator` requires changes to already be staged. `trivy-porter` automatically stages **all repository changes** after each batch and includes a commit suggestion generated via `commit-message-generator with desc`; this may include preexisting uncommitted changes or prior batches. The actual commit must still be executed by the user.
 
-### Kebutuhan saat menjalankan skill
+### Runtime Requirements
 
-Installer hanya menyalin file skill. IDE/extension agent, Git, Trivy, dan Python dipasang terpisah sesuai kebutuhan:
+The installer only copies skill files. The IDE/agent extension, Git, Trivy, and Python must be installed separately as needed:
 
-- **commit-message-generator** dan **mr-description** menggunakan Git pada repository kerja.
-- **trivy-porter** membutuhkan Trivy, Git untuk staging/saran commit, serta Python 3 untuk menyimpan sesi. Metode image juga memerlukan akses image dan lingkungan build yang sesuai bila melakukan perbaikan image.
-- Pada Windows, pastikan `trivy.exe` dan Git dapat dipanggil dari terminal agent. Python 3 dapat tersedia sebagai `python3`, `python`, atau `py -3`; gunakan executable yang tersedia saat menjalankan helper sesi.
+- **commit-message-generator** and **mr-description** require Git in the working repository.
+- **trivy-porter** requires Trivy, Git for staging/commit suggestions, and Python 3 for session state management. The container image workflow also requires container runtime/image access and an appropriate build environment when rebuilding images.
+- On Windows, ensure `trivy.exe` and Git are available in the agent's PATH. Python 3 may be invoked via `python3`, `python`, or `py -3`; ensure an executable is available when running the session helper.
 
-## Jika skill belum muncul
+## Troubleshooting Skill Discovery
 
-Periksa bahwa tujuan memiliki struktur `<nama-skill>/SKILL.md` dan nama pada frontmatter sesuai foldernya. Di VS Code, periksa **Chat: Open Customizations**; di Antigravity, periksa menu **Customizations** pada panel agent. Codex mendeteksi perubahan skill secara otomatis; jika belum terlihat, mulai ulang Codex. Lihat [petunjuk Codex](https://learn.chatgpt.com/docs/build-skills) untuk discovery skill lokal.
+Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file and that the name in the YAML frontmatter matches the directory name. In VS Code, run **Chat: Open Customizations**; in Antigravity, check the **Customizations** menu in the agent panel. Codex detects skill changes automatically; restart Codex if new skills do not appear immediately. Refer to the [Codex documentation](https://learn.chatgpt.com/docs/build-skills) for local skill discovery details.
 
-WSL menggunakan home Linux yang terpisah dari profil pengguna Windows. Jalankan installer di lingkungan tempat agent bekerja: instalasi dari WSL memakai home WSL, sedangkan instalasi native Windows memakai profil Windows. Untuk target remote/container, periksa kembali lokasi yang dibaca agent tersebut. Setelah instalasi, buka sesi chat baru atau refresh IDE bila discovery belum diperbarui.
+WSL uses a Linux home directory separate from the Windows user profile. Run the installer inside the environment where the agent operates: running from WSL installs to the WSL home directory, whereas running from native Windows installs to the Windows user profile. For remote or containerized environments, verify the path read by the agent in that container. After installation, start a new chat session or reload the IDE window if changes are not detected.
 
-## Pengujian
+## Testing
 
 ```sh
 pnpm test
 ```
 
-Jalankan pengujian dari root repository. Installer dan pengujian tidak membutuhkan pemasangan dependency npm.
+Run tests from the repository root. Neither the installer nor the test suite requires installing npm dependencies.
