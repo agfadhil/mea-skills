@@ -1,0 +1,14 @@
+{
+  "name": "mea-skills",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal agent skills with an interactive cross-platform installer",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "install:skills": "node scripts/install-skills.mjs",
+    "test": "node --test"
+  }
+}
