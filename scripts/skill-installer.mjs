@@ -9,8 +9,8 @@ const pathApi = (platform) => platform === 'win32' ? path.win32 : path.posix;
 export function getDefaultTargets({ platform = process.platform, homeDirectory = homedir() } = {}) {
   const paths = pathApi(platform);
   return [
-    { id: 'vscode', label: 'VS Code (Copilot / Codex)', directory: paths.join(homeDirectory, '.agents', 'skills') },
-    { id: 'antigravity', label: 'Antigravity IDE', directory: paths.join(homeDirectory, '.gemini', 'config', 'skills') },
+    { id: 'codex', label: 'Codex', directory: paths.join(homeDirectory, '.codex', 'skills') },
+    { id: 'gemini', label: 'Gemini CLI', directory: paths.join(homeDirectory, '.gemini', 'skills') },
   ];
 }
 
@@ -124,7 +124,7 @@ export async function createInstallPlan({ repositoryRoot, targets }) {
     const existing = normalizedTargets.find((item) => path.relative(item.directory, directory) === '');
     if (existing) { existing.label += ` + ${target.label}`; continue; }
     if (normalizedTargets.some((item) => within(item.directory, directory) || within(directory, item.directory))) {
-      throw new Error('Folder tujuan kedua IDE tidak boleh saling berada di dalam folder tujuan lainnya.');
+      throw new Error('Folder tujuan instalasi tidak boleh saling berada di dalam folder tujuan lainnya.');
     }
     normalizedTargets.push({ ...target, directory });
   }

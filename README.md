@@ -1,6 +1,6 @@
 # mea-skills
 
-A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for VS Code (Copilot/Codex), Antigravity IDE, or both. Supports macOS, Linux, and Windows.
+A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Codex, Gemini CLI, or both. Supports macOS, Linux, and Windows.
 
 ## Getting Started
 
@@ -17,9 +17,9 @@ The installer uses Node.js built-in modules and does not require running `pnpm i
 1. Choose a target:
 
    ```text
-   1. Both — VS Code and Antigravity IDE (default)
-   2. VS Code — Copilot/Codex
-   3. Antigravity IDE
+   1. Both — Codex and Gemini CLI (default)
+   2. Codex
+   3. Gemini CLI
    0. Cancel
    ```
 
@@ -33,12 +33,12 @@ Selecting `0`, rejecting the prompt, or terminating input before confirmation le
 
 | Target | macOS / Linux | Windows |
 | --- | --- | --- |
-| VS Code — Copilot/Codex | `~/.agents/skills` | `%USERPROFILE%\.agents\skills` |
-| Antigravity IDE | `~/.gemini/config/skills` | `%USERPROFILE%\.gemini\config\skills` |
+| Codex | `~/.codex/skills` | `%USERPROFILE%\.codex\skills` |
+| Gemini CLI | `~/.gemini/skills` | `%USERPROFILE%\.gemini\skills` |
 
-The personal `~/.agents/skills` directory is supported by [VS Code Agent Skills](https://code.visualstudio.com/docs/agent-customization/agent-skills) and [Codex](https://learn.chatgpt.com/docs/build-skills). The Antigravity location follows the [IDE skills documentation](https://www.antigravity.google/docs/skills?tab=ide).
+This installer's Codex target uses the skills directory under the default [Codex home](https://learn.chatgpt.com/docs/config-file/environment-variables), `~/.codex`. If you use a custom `CODEX_HOME`, enter its `skills` directory when the installer asks for a custom path. The Gemini CLI target follows its documented [user skill location](https://geminicli.com/docs/cli/using-agent-skills/).
 
-For custom paths, the installer accepts `~/...`, `$HOME/...`, `%USERPROFILE%\...`, as well as quoted paths containing spaces. Custom paths specify the copy destination; the installer does not automatically register arbitrary directories with the IDE. Choose a location natively supported by your agent or configure custom discovery paths in your IDE settings.
+For custom paths, the installer accepts `~/...`, `$HOME/...`, `%USERPROFILE%\...`, as well as quoted paths containing spaces. Custom paths specify the copy destination; the installer does not automatically register arbitrary directories with the agent. Choose a location natively supported by your agent or configure its discovery settings.
 
 ### Updates and Backups
 
@@ -50,11 +50,11 @@ Before replacing a skill whose contents have changed, the installer backs up the
 <destination-parent-folder>/.mea-skills-backups/<run-id>/<target-id>/<skill-name>/
 ```
 
-For example, backups for the `~/.agents/skills` target are stored in `~/.agents/.mea-skills-backups/`. Backups reside outside the skill root directory so they are not inadvertently discovered as active skills. Check the backup path printed by the installer if you need to restore an earlier version.
+For example, backups for the `~/.codex/skills` target are stored in `~/.codex/.mea-skills-backups/`. Backups reside outside the skill root directory so they are not inadvertently discovered as active skills. Check the backup path printed by the installer if you need to restore an earlier version.
 
 ## Available Skills
 
-Open the agent chat in your working repository, then select or invoke the skill according to your IDE's interface.
+Open the agent chat in your working repository, then select or invoke the skill according to your agent's interface.
 
 | Skill | Example Invocation | Purpose |
 | --- | --- | --- |
@@ -101,11 +101,11 @@ trivy-porter continue --session SESSION_ID
 `--project` defaults to the current working directory. Keep this repository available when using its linked command. The skill installer copies skill folders and supporting scripts; it does not register this global command. An installed skill can instead be run directly with Python 3, without Node.js:
 
 ```sh
-python3 ~/.agents/skills/trivy-porter/scripts/trivy_porter.py --project /path/to/app
-python3 ~/.agents/skills/trivy-porter/scripts/trivy_porter.py continue --project /path/to/app --session SESSION_ID
+python3 ~/.codex/skills/trivy-porter/scripts/trivy_porter.py --project /path/to/app
+python3 ~/.codex/skills/trivy-porter/scripts/trivy_porter.py continue --project /path/to/app --session SESSION_ID
 ```
 
-Adjust the installed path for your chosen destination. On Windows, use `py -3` or another Python 3 executable and the corresponding installed path, for example `%USERPROFILE%\.agents\skills\trivy-porter\scripts\trivy_porter.py` in Command Prompt.
+Adjust the installed path for your chosen destination. On Windows, use `py -3` or another Python 3 executable and the corresponding installed path, for example `%USERPROFILE%\.codex\skills\trivy-porter\scripts\trivy_porter.py` in Command Prompt.
 
 ### Storage Location and Cleanup
 
@@ -178,9 +178,9 @@ The installer only copies skill files. The IDE/agent extension, Git, Trivy, and 
 
 ## Troubleshooting Skill Discovery
 
-Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file and that the name in the YAML frontmatter matches the directory name. In VS Code, run **Chat: Open Customizations**; in Antigravity, check the **Customizations** menu in the agent panel. Codex detects skill changes automatically; restart Codex if new skills do not appear immediately. Refer to the [Codex documentation](https://learn.chatgpt.com/docs/build-skills) for local skill discovery details.
+Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file and that the name in the YAML frontmatter matches the directory name. Codex detects skill changes automatically; restart Codex if new skills do not appear immediately. For Gemini CLI, start a new session after installation. Refer to the [Codex documentation](https://learn.chatgpt.com/docs/build-skills) and [Gemini CLI documentation](https://geminicli.com/docs/cli/using-agent-skills/) for local skill discovery details.
 
-WSL uses a Linux home directory separate from the Windows user profile. Run the installer inside the environment where the agent operates: running from WSL installs to the WSL home directory, whereas running from native Windows installs to the Windows user profile. For remote or containerized environments, verify the path read by the agent in that container. After installation, start a new chat session or reload the IDE window if changes are not detected.
+WSL uses a Linux home directory separate from the Windows user profile. Run the installer inside the environment where the agent operates: running from WSL installs to the WSL home directory, whereas running from native Windows installs to the Windows user profile. For remote or containerized environments, verify the path read by the agent in that container. After installation, start a new agent session if changes are not detected.
 
 ## Testing
 
