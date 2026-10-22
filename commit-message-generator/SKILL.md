@@ -1,12 +1,12 @@
 ---
 name: commit-message-generator
 description: >-
-  Generates a standardized git commit message based on staged files in the
-  current repository. Triggered by the /commit slash command. First detects the
-  project's commit message rules (commitlint config, AGENTS.md, CONTRIBUTING.md,
-  etc.), then analyzes staged diffs using `git diff --staged` to infer the
-  correct type, optional scope, and a concise imperative description that passes
-  any configured commit-msg hooks.
+  Stages all repository changes and suggests a commit message following the
+  project's commit rules, including a bullet-point body by default. Use
+  --only-staged to inspect the existing staged diff without changing the index,
+  and no desc to generate only a one-line commit subject.
+  Triggered by /commit, /commit-message-generator, or an explicit request to use
+  this skill to suggest a commit message.
 ---
 
 # Git Commit Generator
@@ -15,13 +15,24 @@ description: >-
 
 When the user types `/commit` or `/commit-message-generator`, this skill:
 
-1. **Detects** the commit message rules that apply to the current project.
-2. **Inspects** every staged file and their diff.
-3. **Generates** a single, compliant commit message string — ready to paste.
+1. **Detects** the repository root and applicable commit message rules.
+2. **Stages all changes** from the repository root by default, or preserves the
+   existing index when `--only-staged` is supplied.
+3. **Inspects** every staged file and their diff.
+4. **Generates** a single, compliant commit message with a subject and concise
+   bullet-point body by default — ready to paste.
 
 The output MUST be **ONLY a single markdown code block** (` ``` `). Do not include any tool execution logs, conversational filler, or text outside the code block.
 
-If the user adds the `with desc` parameter (e.g., `/commit with desc`), the generated commit message must include a brief description in bullet points in the commit body.
+Without parameters, include a brief description in bullet points in the commit
+body. When the invocation includes `no desc` (e.g., `/commit no desc`), output
+only the one-line commit subject, with no body or footer.
+
+`--only-staged` controls staging independently of `no desc`; accept either
+order when both are supplied. For example,
+`/commit-message-generator --only-staged no desc` suggests only a one-line
+subject using the existing staged changes. Never run `git commit` or push as
+part of either mode.
 
 ---
 
@@ -32,7 +43,7 @@ Use the **Conventional Commits** format as the default baseline:
 ```
 <type>(<optional-scope>): <description>
 
-[optional body]
+- Brief description of the changes
 
 [optional footer(s)]
 ```
@@ -77,16 +88,18 @@ If the project enforces a fixed list of scopes, use only scopes from that list.
 - **No trailing period**
 - **≤ 72 characters** for the entire header line
 
-### Body (optional)
+### Body (included by default)
 
-Add a body only when the _why_ is not obvious from the description, OR if the user invoked the command with the `with desc` parameter.
-If `with desc` is used, you **must** include a short description formatted as bullet points in the body.
-Separate from the header with a blank line. Wrap at 72 characters.
+Include a concise bullet-point description of the actual staged changes, even
+when the subject alone would explain them. Add the reason when it helps.
+Separate the body from the subject with a blank line and wrap at 72 characters.
+Omit the body entirely only when the invocation includes `no desc`.
 
 ### Footer (optional)
 
 Use `BREAKING CHANGE: <description>` for breaking changes.
 Use `Closes #<issue>` or `Fixes #<issue>` to reference issues.
+The `no desc` mode emits only the subject, so omit footers in that mode.
 
 ---
 
@@ -153,21 +166,42 @@ git rev-parse --show-toplevel
 If this fails, stop and tell the user: "No git repository found. Please run
 `/commit` from inside a git project directory."
 
-### Step 2 — Check for staged files
+### Step 2 — Prepare the index and check for staged files
 
-Run:
+Unless the invocation includes `--only-staged`, run this command using the
+resolved repository root as the working directory:
+
+```sh
+git add -A
+```
+
+This stages added, modified, and deleted files across the entire repository,
+including untracked files and changes outside the invocation's subdirectory.
+Partially staged files become fully staged with their current working-tree
+contents. Respect normal Git ignore rules; do not force-add ignored files.
+The default invocation authorizes this staging step without a separate prompt.
+If staging fails, stop and report the failure instead of suggesting a message
+from an incomplete or outdated index.
+
+With `--only-staged`, skip staging entirely. Do not add, reset, unstage, or
+otherwise change the index or working files. Analyze only the existing staged
+snapshot, excluding unstaged edits and untracked files.
+
+Then, in either mode, run from the repository root:
 
 ```
 git diff --staged --name-only
 ```
 
-If the output is empty, stop and tell the user:
-"No staged files found. Stage your changes with `git add <files>` before
-running `/commit`."
+If the output is empty, stop without inventing a commit message:
+
+- Default mode: "No changes found to stage or describe."
+- `--only-staged`: "No staged files found. Stage your changes with
+  `git add <files>` or run without `--only-staged`."
 
 ### Step 3 — Collect the staged diff
 
-Run:
+Run from the repository root:
 
 ```
 git diff --staged
@@ -195,8 +229,8 @@ Reason over the staged diff:
    component folder, use that as the scope.
 4. **Write the description** — one tight imperative phrase. Focus on the
    _effect_ on the system, not the mechanical change.
-5. **Decide on body** — only add a body if the description cannot capture a
-   critical _why_.
+5. **Write the body** — summarize the staged changes in concise bullet points
+   by default. Skip the body only when the invocation includes `no desc`.
 
 ### Step 5 — Apply project-specific scope conventions
 
@@ -225,9 +259,10 @@ multiple unrelated areas.
 Print the commit message wrapped **only** inside a single markdown code block (` ``` `).
 **CRITICAL: Do NOT output any conversational filler (e.g., "Here is the commit message"), tool execution logs, or thought processes outside the code block.** The final output must strictly be the code block.
 
-If the user triggered the skill with the `with desc` parameter (e.g., `/commit with desc`), the commit message body must contain bullet points describing the changes.
+By default, the commit message must include a subject, a blank line, and a
+concise bullet-point body. If `no desc` is supplied, include only the subject.
 
-Example valid outputs for `/commit`:
+Example valid outputs for `/commit no desc`:
 
 ```
 feat(dropdown): add keyboard navigation support
@@ -249,7 +284,7 @@ chore(deps): update @legion-ui-kit to v3.2.1
 docs: add architecture decision for vertical slice routing
 ```
 
-Example valid output for `/commit with desc`:
+Example valid output for `/commit`:
 
 ```text
 test(update-stock-merchant): improve unit tests for page and actions
@@ -276,6 +311,11 @@ test(update-stock-merchant): improve unit tests for page and actions
    multiple commit messages for a single `/commit` invocation.
 6. **Using `fix` for refactors** — restructuring code that works correctly is
    `refactor`, not `fix`.
+7. **Ignoring the staging mode** — default mode stages all repository changes;
+   `--only-staged` must leave the index unchanged. Do not limit default staging
+   to the current directory or include unstaged content in an only-staged message.
+8. **Omitting the default description** — include a bullet-point body without
+   requiring an extra parameter. Use only the subject when `no desc` is supplied.
 
 ---
 
@@ -283,11 +323,14 @@ test(update-stock-merchant): improve unit tests for page and actions
 
 ```text
 # Trigger
-/commit [with desc]
+/commit [--only-staged] [no desc]
 
 # What happens
-1. git diff --staged --name-only   → list staged files
-2. git diff --staged               → full diff for analysis
-3. Infer: type, scope, description
-4. Output: ONLY the markdown code block containing the commit message. If `with desc` is passed, include bullet points in the body.
+1. Resolve the repository root and detect its commit rules
+2. git add -A                     → stage all, unless --only-staged
+3. git diff --staged --name-only   → list staged files
+4. git diff --staged               → full diff for analysis
+5. Infer: type, scope, description
+6. Output: ONLY one code block with the subject and bullet-point body by default;
+   use only the one-line subject when no desc is supplied
 ```

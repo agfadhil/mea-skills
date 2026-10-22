@@ -24,10 +24,10 @@ If staging succeeds but the index is empty, record `skipped_empty`, explain that
 
 ## 2. Invoke the companion skill
 
-Discover and read the available skill named `commit-message-generator`, then invoke its workflow with argument `with desc`, equivalent to:
+Discover and read the available skill named `commit-message-generator`, then invoke its workflow without additional parameters, using its default subject-plus-description output:
 
 ```text
-/commit-message-generator with desc
+/commit-message-generator
 ```
 
 Use the skill installed in the current environment. Do not treat the slash invocation as a shell executable or silently substitute a hand-written message. If the skill is missing, preserve the staged changes, mark generation blocked, and report the missing dependency and its searched location.
@@ -42,7 +42,7 @@ Store per batch:
 
 - Repository root, current HEAD (or null for an unborn branch), staging command/result, staged file statuses, and a fingerprint of the staged diff.
 - Whether the staged scope includes pre-existing or previous-batch changes.
-- Generator skill name, `with desc` argument, generation status, and complete suggested message.
+- Generator skill name, arguments (empty or omitted for the default invocation), generation status, and complete suggested message.
 - Any blocker and the pending Git substep needed for continuation.
 
 Use statuses such as `pending`, `staged`, `generated`, `skipped_empty`, or `blocked` for this preparation; they do not replace finding statuses. A dependency test or scan failure must remain visible even when its changes are staged and a suggestion has been generated.

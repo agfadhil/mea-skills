@@ -7,7 +7,7 @@ description: Analyze Trivy scans and exported Trivy Porter reports, explain find
 
 The terminal CLI handles scan menus, input validation, scan execution, and batch-size choices locally. This skill reads that saved session in chat, explains findings, and fixes one requested batch. The user explicitly returns to chat for each handoff; a terminal program does not automatically submit messages to the Codex extension. No Codex CLI or API key is required.
 
-After every remediation batch, stage all repository changes and generate a commit suggestion using the companion skill `commit-message-generator` with `with desc`. Leave the actual commit to the user. Use Indonesian for instructions, explanations, inventories, and reports; preserve the generated commit message's project conventions. Keep CLI flags, package names, advisory IDs, and severity labels unchanged.
+After every remediation batch, stage all repository changes and generate a commit suggestion using the companion skill `commit-message-generator` without additional parameters; its default output includes a subject and bullet-point description. Leave the actual commit to the user. Use Indonesian for instructions, explanations, inventories, and reports; preserve the generated commit message's project conventions. Keep CLI flags, package names, advisory IDs, and severity labels unchanged.
 
 ## Entry points and defaults
 
@@ -84,7 +84,7 @@ Run checks appropriate to the changed packages and affected behavior, using the 
 
 Mark an item `resolved` only when the scan actually verifies its absence for a fixed issue and the applicable checks pass. Otherwise use `blocked`, `unverified`, or `pending`, with an explanation. A filtered-out issue, unchanged old image, disabled scanner, failed scan, or test failure cannot establish successful remediation.
 
-After verification, automatically stage **all** changes from the Git repository root with `git add -A`, then load and run `commit-message-generator` with the `with desc` parameter against the complete staged diff. This also applies when some selected findings remain blocked or unverified and the batch leaves changes; report those outcomes truthfully. Do not narrow staging to the current batch's paths or ask for routine staging confirmation. Normal ignored files remain ignored.
+After verification, automatically stage **all** changes from the Git repository root with `git add -A`, then load and run `commit-message-generator` without additional parameters against the complete staged diff, using its default subject-plus-description output. This also applies when some selected findings remain blocked or unverified and the batch leaves changes; report those outcomes truthfully. Do not narrow staging to the current batch's paths or ask for routine staging confirmation. Normal ignored files remain ignored.
 
 Capture the generator's single code block as the suggested commit subject plus bullet-point body and include it in the batch report. Its code-block-only output rule applies to that generated message, not to the entire Trivy report. Do not run `git commit`, push, or unstage changes. Follow [git-commit.md](references/git-commit.md) for empty diffs, cumulative/unrelated changes, missing dependencies, Git failures, and interruption recovery.
 

@@ -58,12 +58,21 @@ Open the agent chat in your working repository, then select or invoke the skill 
 
 | Skill | Example Invocation | Purpose |
 | --- | --- | --- |
-| [commit-message-generator](commit-message-generator/SKILL.md) | `/commit-message-generator with desc` | Analyzes staged diffs and project rules to suggest a conventional commit header and bulleted body. The `/commit with desc` alias is also supported. |
+| [commit-message-generator](commit-message-generator/SKILL.md) | `/commit-message-generator` | Stages all repository changes by default, then suggests a commit subject and brief bulleted body following project rules. Use `no desc` for a one-line subject; `/commit` is also supported. |
 | [mr-description](mr-description/SKILL.md) | `/mr-description 6` | Generates an English MR/PR title and structured description from the last N commits, including commit IDs. Defaults to **1** commit if N is omitted. |
 | [trivy-porter](trivy-porter/SKILL.md) | `trivy-porter` in a terminal | Selects `fs` or `image` scans, flags, and severities locally, then hands the saved session to the agent for explanations and fixes. |
 | trivy-porter — continue | `/trivy-porter continue SESSION_ID` in the agent chat | Reads the saved session, explains findings in Indonesian, and remediates the batch selected in the terminal. Defaults to one finding per batch. |
 
-`commit-message-generator` requires changes to already be staged. `trivy-porter` automatically stages **all repository changes** after each batch and includes a commit suggestion generated via `commit-message-generator with desc`; this may include preexisting uncommitted changes or prior batches. The actual commit must still be executed by the user.
+`commit-message-generator` automatically runs `git add -A` from the repository root before generating a subject and brief bullet-point description, including modified, new, and deleted files while respecting Git ignore rules. Pass `--only-staged` to preserve the current index and analyze only changes already staged. Add `no desc` for a one-line message; it combines with `--only-staged` in either order:
+
+```text
+/commit-message-generator
+/commit-message-generator --only-staged
+/commit-message-generator no desc
+/commit-message-generator --only-staged no desc
+```
+
+`trivy-porter` automatically stages **all repository changes** after each batch and includes a commit suggestion generated via `commit-message-generator` without additional parameters, using its default subject-plus-description output; this may include preexisting uncommitted changes or prior batches. The actual commit must still be executed by the user.
 
 ### Trivy Porter in the Terminal
 
