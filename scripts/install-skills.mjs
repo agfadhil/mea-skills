@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { applyInstallPlan, createInstallPlan, getDefaultTargets, resolveDestination } from './skill-installer.mjs';
 
 const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const actionLabels = { install: 'baru', update: 'perbarui + cadangkan versi lama', unchanged: 'sudah sama, lewati' };
+const actionLabels = { install: 'baru', update: 'perbarui (timpa versi lama)', unchanged: 'sudah sama, lewati' };
 
 class Cancelled extends Error {}
 
@@ -29,9 +29,9 @@ export async function runInstaller({
     print(`OS: ${{ win32: 'Windows', darwin: 'macOS', linux: 'Linux' }[platform] || platform}`);
     print();
     print('Pilih tujuan instalasi:');
-    print('1. Codex dan Gemini CLI (default)');
+    print('1. Codex dan Antigravity (default)');
     print('2. Codex');
-    print('3. Gemini CLI');
+    print('3. Antigravity');
     print('0. Batal');
     let choice;
     do {
@@ -41,7 +41,7 @@ export async function runInstaller({
     if (choice === '0') throw new Cancelled();
 
     const defaults = getDefaultTargets({ platform, homeDirectory });
-    const selected = choice === '1' ? defaults : defaults.filter((item) => item.id === (choice === '2' ? 'codex' : 'gemini'));
+    const selected = choice === '1' ? defaults : defaults.filter((item) => item.id === (choice === '2' ? 'codex' : 'antigravity'));
     const targets = [];
     for (const target of selected) {
       print();
@@ -63,7 +63,6 @@ export async function runInstaller({
       print(`${target.label}: ${target.directory}`);
       for (const operation of plan.operations.filter((item) => item.targetId === target.id)) {
         print(`  - ${operation.name}: ${actionLabels[operation.action]}`);
-        if (operation.backupPath) print(`    Cadangan: ${operation.backupPath}`);
       }
     }
     print('Path custom perlu didukung oleh pengaturan discovery agent Anda.');
@@ -79,9 +78,8 @@ export async function runInstaller({
     print(`Selesai: ${result.installed.length} salinan skill dipasang/diperbarui; ${result.unchanged.length} salinan sudah sama.`);
     for (const operation of result.installed) {
       print(`- ${operation.destination}`);
-      if (operation.backupPath) print(`  Cadangan versi sebelumnya: ${operation.backupPath}`);
     }
-    print('Buka sesi Codex/Gemini baru jika skill belum muncul.');
+    print('Buka sesi Codex/Antigravity baru jika skill belum muncul.');
     print('Untuk trivy-porter, siapkan Git, Trivy, dan Python 3 pada terminal agent.');
     return { cancelled: false, ...result };
   } catch (error) {
@@ -94,7 +92,7 @@ export async function runInstaller({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2).filter((item) => item !== '--');
   if (args.length && args.every((item) => ['--help', '-h'].includes(item))) {
-    console.log('Pemakaian: pnpm run install:skills\nPilih Codex/Gemini, periksa atau ubah path, lalu konfirmasikan instalasi.');
+    console.log('Pemakaian: pnpm run install:skills\nPilih Codex/Antigravity, periksa atau ubah path, lalu konfirmasikan instalasi.');
   } else if (args.length) {
     console.error(`Argumen tidak dikenal: ${args.join(' ')}. Gunakan --help untuk bantuan.`);
     process.exitCode = 1;

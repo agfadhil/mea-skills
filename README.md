@@ -1,6 +1,6 @@
 # mea-skills
 
-A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Codex, Gemini CLI, or both. Supports macOS, Linux, and Windows.
+A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Codex, Antigravity, or both. Supports macOS, Linux, and Windows.
 
 ## Getting Started
 
@@ -17,9 +17,9 @@ The installer uses Node.js built-in modules and does not require running `pnpm i
 1. Choose a target:
 
    ```text
-   1. Both — Codex and Gemini CLI (default)
+   1. Both — Codex and Antigravity (default)
    2. Codex
-   3. Gemini CLI
+   3. Antigravity
    0. Cancel
    ```
 
@@ -34,23 +34,19 @@ Selecting `0`, rejecting the prompt, or terminating input before confirmation le
 | Target | macOS / Linux | Windows |
 | --- | --- | --- |
 | Codex | `~/.codex/skills` | `%USERPROFILE%\.codex\skills` |
-| Gemini CLI | `~/.gemini/skills` | `%USERPROFILE%\.gemini\skills` |
+| Antigravity | `~/.gemini/config/skills` | `%USERPROFILE%\.gemini\config\skills` |
 
-This installer's Codex target uses the skills directory under the default [Codex home](https://learn.chatgpt.com/docs/config-file/environment-variables), `~/.codex`. If you use a custom `CODEX_HOME`, enter its `skills` directory when the installer asks for a custom path. The Gemini CLI target follows its documented [user skill location](https://geminicli.com/docs/cli/using-agent-skills/).
+This installer's Codex target uses the skills directory under the default [Codex home](https://learn.chatgpt.com/docs/config-file/environment-variables), `~/.codex`. If you use a custom `CODEX_HOME`, enter its `skills` directory when the installer asks for a custom path. The Antigravity target follows the documented [App/IDE skill location](https://antigravity.google/docs/skills?app=antigravity-ide).
 
 For custom paths, the installer accepts `~/...`, `$HOME/...`, `%USERPROFILE%\...`, as well as quoted paths containing spaces. Custom paths specify the copy destination; the installer does not automatically register arbitrary directories with the agent. Choose a location natively supported by your agent or configure its discovery settings.
 
-### Updates and Backups
+### Updates
 
-Run `pnpm run install:skills` again whenever repository contents are updated. Skills with identical contents are skipped. Other existing skills at the destination remain untouched.
+Run `pnpm run install:skills` again whenever repository contents are updated. Skills with identical contents are skipped. Other skill folders at the destination remain untouched.
 
-Before replacing a skill whose contents have changed, the installer backs up the previous version into a backup folder alongside the destination `skills` directory:
+The installer prepares and verifies the new copies before replacing each selected skill folder. Updates replace the entire folder, including removing files no longer present in the source. Previous versions are overwritten without creating backup folders or retaining old snapshots.
 
-```text
-<destination-parent-folder>/.mea-skills-backups/<run-id>/<target-id>/<skill-name>/
-```
-
-For example, backups for the `~/.codex/skills` target are stored in `~/.codex/.mea-skills-backups/`. Backups reside outside the skill root directory so they are not inadvertently discovered as active skills. Check the backup path printed by the installer if you need to restore an earlier version.
+If installation fails after replacements begin, completed updates remain installed. Run the installer again from the source repository to finish the remaining work.
 
 ## Available Skills
 
@@ -187,7 +183,7 @@ The installer only copies skill files. The IDE/agent extension, Git, Trivy, and 
 
 ## Troubleshooting Skill Discovery
 
-Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file and that the name in the YAML frontmatter matches the directory name. Codex detects skill changes automatically; restart Codex if new skills do not appear immediately. For Gemini CLI, start a new session after installation. Refer to the [Codex documentation](https://learn.chatgpt.com/docs/build-skills) and [Gemini CLI documentation](https://geminicli.com/docs/cli/using-agent-skills/) for local skill discovery details.
+Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file and that the name in the YAML frontmatter matches the directory name. Codex detects skill changes automatically; restart Codex if new skills do not appear immediately. For Antigravity, start a new agent session after installation. Refer to the [Codex documentation](https://learn.chatgpt.com/docs/build-skills) and [Antigravity documentation](https://antigravity.google/docs/skills?app=antigravity-ide) for local skill discovery details.
 
 WSL uses a Linux home directory separate from the Windows user profile. Run the installer inside the environment where the agent operates: running from WSL installs to the WSL home directory, whereas running from native Windows installs to the Windows user profile. For remote or containerized environments, verify the path read by the agent in that container. After installation, start a new agent session if changes are not detected.
 
@@ -198,4 +194,4 @@ pnpm test
 pnpm run test:trivy-porter
 ```
 
-Run tests from the repository root. `pnpm test` checks the Node launcher; `pnpm run test:trivy-porter` checks the Python CLI and session workflow using local fixtures, without a real scan. The Python test command requires `python3`; if your system provides Python 3 as `python` or `py -3`, use that executable with `-B -m unittest discover -s tests -p "test_*.py"`. Neither the installer nor the test suite requires installing npm dependencies.
+Run tests from the repository root. `pnpm test` checks the Node launcher and skill installer; `pnpm run test:trivy-porter` checks the Python CLI and session workflow using local fixtures, without a real scan. The Python test command requires `python3`; if your system provides Python 3 as `python` or `py -3`, use that executable with `-B -m unittest discover -s tests -p "test_*.py"`. Neither the installer nor the test suite requires installing npm dependencies.

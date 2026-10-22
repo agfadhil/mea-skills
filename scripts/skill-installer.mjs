@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -10,7 +10,7 @@ export function getDefaultTargets({ platform = process.platform, homeDirectory =
   const paths = pathApi(platform);
   return [
     { id: 'codex', label: 'Codex', directory: paths.join(homeDirectory, '.codex', 'skills') },
-    { id: 'gemini', label: 'Gemini CLI', directory: paths.join(homeDirectory, '.gemini', 'skills') },
+    { id: 'antigravity', label: 'Antigravity', directory: paths.join(homeDirectory, '.gemini', 'config', 'skills') },
   ];
 }
 
@@ -128,7 +128,6 @@ export async function createInstallPlan({ repositoryRoot, targets }) {
     }
     normalizedTargets.push({ ...target, directory });
   }
-  const runId = `${new Date().toISOString().replace(/[:.]/gu, '-')}-${randomUUID().slice(0, 8)}`;
   const operations = [];
   for (const target of normalizedTargets) {
     for (const skill of skills) {
@@ -142,8 +141,6 @@ export async function createInstallPlan({ repositoryRoot, targets }) {
       operations.push({
         name: skill.name, source: skill.source, destination, targetId: target.id,
         targetLabel: target.label, sourceManifest, destinationManifest, action,
-        backupPath: action === 'update'
-          ? path.join(path.dirname(target.directory), '.mea-skills-backups', runId, target.id, skill.name) : null,
       });
     }
   }
@@ -158,7 +155,8 @@ export async function applyInstallPlan(plan) {
       throw new Error(`File berubah setelah rencana dibuat. Jalankan installer lagi: ${operation.name}`);
     }
   }
-  const changes = [];
+  const preparedCopies = [];
+  const installed = [];
   const temporaryDirectories = [];
   try {
     for (const operation of plan.operations) {
@@ -173,31 +171,32 @@ export async function applyInstallPlan(plan) {
         filter: (filename) => !ignored(path.basename(filename)),
       });
       if (await manifest(prepared) !== operation.sourceManifest) throw new Error(`Verifikasi salinan gagal: ${operation.name}`);
+      preparedCopies.push({ operation, prepared });
+    }
+    // Prepare every new copy before replacing any installed skill. No old
+    // version is saved; successfully completed replacements stay installed.
+    for (const operation of plan.operations) {
+      if (await existingManifest(operation.destination) !== operation.destinationManifest) {
+        throw new Error(`Tujuan berubah saat salinan disiapkan. Jalankan installer lagi: ${operation.name}`);
+      }
+    }
+    for (const { operation, prepared } of preparedCopies) {
       await fs.mkdir(path.dirname(operation.destination), { recursive: true });
-      const change = { operation, backedUp: false, installed: false };
-      changes.push(change);
-      if (operation.backupPath) {
-        await fs.mkdir(path.dirname(operation.backupPath), { recursive: true });
-        await fs.rename(operation.destination, operation.backupPath);
-        change.backedUp = true;
+      if (operation.action === 'update') {
+        await fs.rm(operation.destination, { recursive: true });
       }
       await fs.rename(prepared, operation.destination);
-      change.installed = true;
       if (await manifest(operation.destination) !== operation.sourceManifest) throw new Error(`Verifikasi instalasi gagal: ${operation.name}`);
+      installed.push(operation);
     }
     return {
       installed: plan.operations.filter((item) => item.action !== 'unchanged'),
       unchanged: plan.operations.filter((item) => item.action === 'unchanged'),
     };
   } catch (error) {
-    const failures = [];
-    for (const change of changes.reverse()) {
-      try {
-        if (change.installed) await fs.rm(change.operation.destination, { recursive: true, force: true });
-        if (change.backedUp) await fs.rename(change.operation.backupPath, change.operation.destination);
-      } catch (rollbackError) { failures.push(rollbackError.message); }
+    if (installed.length) {
+      throw new Error(`${error.message}\nSkill yang sudah selesai tetap terpasang:\n${installed.map((item) => `- ${item.destination}`).join('\n')}`, { cause: error });
     }
-    if (failures.length) throw new Error(`${error.message}\nPemulihan perlu diperiksa: ${failures.join('; ')}`, { cause: error });
     throw error;
   } finally {
     for (const temporary of temporaryDirectories) await fs.rm(temporary, { recursive: true, force: true });
