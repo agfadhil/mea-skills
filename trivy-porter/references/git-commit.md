@@ -6,6 +6,8 @@ After every remediation batch, complete verification, stage all repository chang
 
 Resolve the repository root with `git rev-parse --show-toplevel`. Inspect `git status --short` and the current staged scope, noting pre-existing and earlier-batch changes. Record the Git step as pending before mutating the index.
 
+For project-local session storage, check that the active partition and any other managed partitions under the selected storage root within this repository are ignored and have no tracked files before staging. Each partition's managed `.gitignore` should keep generated state out of `git add -A`; an ignore rule cannot protect files already tracked. If state files are tracked or an ignore rule is missing/changed, record Git preparation as blocked and explain it. Do not force-add, automatically untrack, or unstage those files. This does not narrow staging of application changes.
+
 Run from the repository root, with the root passed as a literal argument:
 
 ```text
@@ -51,4 +53,4 @@ The report must show staging status/scope and the subject-plus-description in on
 
 On `/trivy-porter continue`, compare the actual current HEAD, index, and repository state with saved evidence. The user may have committed, edited, staged, or unstaged files after the previous report. A saved message is historical unless both its HEAD and staged-diff fingerprint still match; regenerate from the current index after the required staging step when preparing a batch completion report. A normal continuation recap does not itself trigger staging or bypass the fresh batch-size question.
 
-If interruption occurred between remediation, staging, and generation, finish only the pending substeps for that batch, save and report the result, then stop. A staging/generation blocker is not permission to start a new remediation batch. Ask for a fresh batch size before any additional findings are selected.
+If interruption occurred between remediation, staging, and generation, finish only the pending substeps for that batch, save and report the result, then stop. A staging/generation blocker is not permission to start a new remediation batch. Return to terminal continue for a fresh batch request before any additional findings are selected.

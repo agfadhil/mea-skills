@@ -7,8 +7,13 @@
   "engines": {
     "node": ">=20"
   },
+  "bin": {
+    "trivy-porter": "scripts/trivy-porter.mjs"
+  },
   "scripts": {
     "install:skills": "node scripts/install-skills.mjs",
-    "test": "node --test"
+    "trivy-porter": "node scripts/trivy-porter.mjs",
+    "test": "node --test",
+    "test:trivy-porter": "python3 -B -m unittest discover -s tests -p \"test_*.py\""
   }
 }
