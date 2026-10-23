@@ -117,12 +117,12 @@ Adjust the installed path for your chosen destination. On Windows, use `py -3` o
 From your application directory, these shortcuts export the report, print a chat prompt, or remove local session storage:
 
 ```sh
-trivy-porter --download
+trivy-porter -d          # equivalent to --download
 trivy-porter --prompt
 trivy-porter --clean
 ```
 
-`--download` writes one self-contained, sanitized JSON report to `~/Downloads` and prints its full path. It selects this project's most recently updated session that has scan output; use `--session SESSION_ID` to select one explicitly, or `--download-dir /path/to/folder` to change the export destination. Source selection still accepts `--project` and `--state-dir`. Attach the exported JSON to an AI agent and ask it to analyze the findings and propose solutions. Exporting does not run a new scan or upload anything automatically; the report describes the saved scan and session snapshot.
+`--download` (or its shorthand `-d`) writes one self-contained, sanitized JSON report to `~/Downloads` and prints its full path. Both forms select this project's most recently updated session that has scan output; use `--session SESSION_ID` to select one explicitly, or `--download-dir /path/to/folder` to change the export destination. Source selection still accepts `--project` and `--state-dir`. Attach the exported JSON to an AI agent and ask it to analyze the findings and propose solutions. Exporting does not run a new scan or upload anything automatically; the report describes the saved scan and session snapshot.
 
 `--prompt` prints this copyable text without reading a session, creating files, or running a scan:
 

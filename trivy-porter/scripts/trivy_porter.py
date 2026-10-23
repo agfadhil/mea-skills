@@ -840,7 +840,7 @@ def parse_args(argv=None):
     parser.add_argument("--all", dest="all_sessions", action="store_true", help="clean: seluruh sesi untuk project ini saja.")
     shortcuts = parser.add_mutually_exclusive_group()
     shortcuts.add_argument("--clean", action="store_true", help="Hapus seluruh folder .trivy-porter di cwd, tanpa pertanyaan tambahan.")
-    shortcuts.add_argument("--download", action="store_true", help="Ekspor laporan sesi terbaru ke folder Downloads untuk diunggah ke agent.")
+    shortcuts.add_argument("-d", "--download", action="store_true", help="Ekspor laporan sesi terbaru ke folder Downloads untuk diunggah ke agent.")
     shortcuts.add_argument("--prompt", action="store_true", help="Cetak prompt untuk disalin ke chat bersama laporan JSON; ganti n dengan jumlah temuan.")
     parser.add_argument("--download-dir", help="Folder tujuan --download (default: ~/Downloads).")
     return parser.parse_args(argv)

@@ -32,7 +32,7 @@ Terminal `storage` shows the resolved storage paths and `sessions` lists the cur
 
 ## Export, chat prompt and full local cleanup
 
-`trivy-porter --download` selects the current project's most recently updated session with scan output and writes one sanitized, self-contained JSON report to `~/Downloads`, printing the full path. `--session SESSION_ID` selects a specific session; `--download-dir PATH` changes the destination. Normal project/storage options select the source. No Trivy command or automatic upload runs. The user attaches the file to an AI agent and asks for analysis or solutions. Missing evidence is an error, not an invitation to fabricate a report or rescan. See [session-state.md](session-state.md) for the portable report contract.
+`trivy-porter --download` and its shorthand `trivy-porter -d` select the current project's most recently updated session with scan output and write one sanitized, self-contained JSON report to `~/Downloads`, printing the full path. Both forms accept the same options: `--session SESSION_ID` selects a specific session; `--download-dir PATH` changes the destination. Normal project/storage options select the source. No Trivy command or automatic upload runs. The user attaches the file to an AI agent and asks for analysis or solutions. Missing evidence is an error, not an invitation to fabricate a report or rescan. See [session-state.md](session-state.md) for the portable report contract.
 
 `trivy-porter --prompt` prints only this static text for the user to copy into the agent chat with the exported JSON attached:
 
