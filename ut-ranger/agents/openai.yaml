@@ -1,0 +1,4 @@
+interface:
+  display_name: "UT Ranger"
+  short_description: "Buat unit test dalam scope test, target coverage 100%"
+  default_prompt: "$ut-ranger src/components/UserForm.tsx"

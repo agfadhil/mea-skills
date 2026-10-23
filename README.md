@@ -1,6 +1,6 @@
 # mea-skills
 
-A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Codex, Antigravity, or both. Supports macOS, Linux, and Windows.
+A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, creating unit tests without production changes, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Codex, Antigravity, or both. Supports macOS, Linux, and Windows.
 
 ## Getting Started
 
@@ -56,6 +56,7 @@ Open the agent chat in your working repository, then select or invoke the skill 
 | --- | --- | --- |
 | [commit-message-generator](commit-message-generator/SKILL.md) | `/commit-message-generator` | Stages all repository changes by default, then suggests a commit subject and brief bulleted body following project rules. Use `no desc` for a one-line subject; `/commit` is also supported. |
 | [mr-description](mr-description/SKILL.md) | `/mr-description 6` | Generates an English MR/PR title and structured description from the last N commits, including commit IDs. Defaults to **1** commit if N is omitted. |
+| [ut-ranger](ut-ranger/SKILL.md) | `$ut-ranger path` or `$ut-ranger [path1, path2]` | Creates or completes unit tests only in designated test directories, verifies tests and lint, and aims for 100% coverage without changing production code. Reports multiple targets as a numbered list in input order. |
 | [trivy-porter](trivy-porter/SKILL.md) | `trivy-porter` in a terminal | Selects `fs` or `image` scans, flags, and severities locally, then hands the saved session to the agent for explanations and fixes. |
 | trivy-porter — analyze | `$trivy-porter analyze SESSION_ID` in the agent chat | Reads the saved scan, explains findings in Indonesian, and creates an inventory before remediation is selected. |
 | trivy-porter — continue | `$trivy-porter continue SESSION_ID` in the agent chat | Resumes a remediation batch selected in the terminal or recovers interrupted work. Defaults to one finding per batch. |
@@ -70,6 +71,26 @@ Open the agent chat in your working repository, then select or invoke the skill 
 ```
 
 `trivy-porter` automatically stages **all repository changes** after each batch and includes a commit suggestion generated via `commit-message-generator` without additional parameters, using its default subject-plus-description output; this may include preexisting uncommitted changes or prior batches. The actual commit must still be executed by the user.
+
+### UT Ranger
+
+Invoke the skill in the application repository with one path:
+
+```text
+$ut-ranger src/components/UserForm.tsx
+```
+
+For multiple targets, pass a comma-separated array of paths:
+
+```text
+$ut-ranger [src/components/UserForm.tsx, src/pages/Login.tsx, src/utils/formatCurrency.ts]
+```
+
+The rules are built into the skill; no extra request text or reminders are needed. The array does not need to be valid JSON: ordinary paths can be unquoted, and paths containing spaces or commas can be quoted. Relative paths resolve from the application project root.
+
+The skill checks existing tests and coverage, adds relevant success/error/edge cases, runs test and lint verification, and compares the final changes against the initial state. It can read production code, but all changes must stay in the designated unit test directories. It creates a missing `__tests__` folder when needed and uses the application's existing tooling without changing dependencies or configuration. For multiple targets, the report uses a numbered list in input order, with status, test changes, verification results, coverage, and blockers for each path. Missing paths stay in the report while valid targets continue.
+
+The coverage goal is 100% for statements, branches, functions, and lines. Production bugs, unreachable branches, unavailable tooling, and existing test failures are reported explicitly; the skill must not weaken tests or alter production code to claim a passing result. Invoking it without target paths prompts for the first list. `/ut-ranger` is also recognized as invocation text.
 
 ### Trivy Porter in the Terminal
 
@@ -209,9 +230,10 @@ The scoped `clean` subcommand previews recognized session files and asks `[y/N]`
 
 ### Runtime Requirements
 
-The installer only copies skill files. The IDE/agent extension, Git, Trivy, and Python must be installed separately as needed:
+The installer only copies skill files. Agent integrations and runtime tools must be installed separately as needed:
 
 - **commit-message-generator** and **mr-description** require Git in the working repository.
+- **ut-ranger** uses the target repository's existing unit test runner, coverage tooling, and lint/format tools. Dependencies must already be available; the skill does not install them or change project configuration.
 - **trivy-porter** requires Trivy, Git for staging/commit suggestions, and Python 3 for its interactive CLI and session state management. The Node launcher also requires Node.js 20 or later and automatically locates Python 3. Image scans require Docker in PATH, a running Docker daemon, and a project Dockerfile/build context that supports `linux/amd64`.
 - On Windows, ensure `trivy.exe` and Git are available in both the terminal and agent's PATH. Python 3 may be invoked via `python3`, `python`, or `py -3`; ensure an executable is available when running the CLI or session helper.
 
