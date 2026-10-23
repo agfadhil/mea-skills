@@ -1,6 +1,6 @@
 ---
 name: trivy-porter
-description: Analyze Trivy scans and exported Trivy Porter reports, explain findings in Indonesian, and remediate resumable batches with staged changes and commit suggestions. Use when the user invokes /trivy-porter or /trivy-porter continue, supplies a Trivy Porter report for analysis, or explicitly requests this terminal-and-agent scan/remediation workflow.
+description: Analyze Trivy scans and exported Trivy Porter reports, explain findings in Indonesian, and remediate resumable batches with staged changes and commit suggestions. Use when the user invokes $trivy-porter (including analyze or continue), uses a legacy /trivy-porter handoff, supplies a Trivy Porter report for analysis, or explicitly requests this terminal-and-agent scan/remediation workflow.
 ---
 
 # Trivy Porter
@@ -11,14 +11,16 @@ After every remediation batch, stage all repository changes and generate a commi
 
 ## Entry points and defaults
 
-- `/trivy-porter` without an existing session or uploaded report: provide the terminal start command for the current project, then stop. The user answers menus in their own terminal.
-- `/trivy-porter continue SESSION_ID [--project PROJECT_PATH] [--state-dir STATE_ROOT]`: read the explicit saved session and perform its pending agent step. Preserve the supplied project path and storage root; otherwise use the remembered session context or current defaults. Without an ID, discover candidates and resolve ambiguity before continuing.
+- `$trivy-porter` without an existing session or uploaded report: provide the terminal start command for the current project, then stop. The user answers menus in their own terminal.
+- `$trivy-porter analyze SESSION_ID [--project PROJECT_PATH] [--state-dir STATE_ROOT]`: read the saved scan and explain findings using step 2, then stop without starting remediation. Preserve the supplied project path and storage root. If the session already has an inventory, provide its evidence-based recap without consuming a batch request or changing application files. If no scan evidence exists yet, explain the current stage and direct the user to terminal continuation; do not launch a new scan. Resolve a missing or ambiguous session ID using the same discovery rules as continuation.
+- `$trivy-porter continue SESSION_ID [--project PROJECT_PATH] [--state-dir STATE_ROOT]`: read the explicit saved session and perform its pending agent step. Preserve the supplied project path and storage root; otherwise use the remembered session context or current defaults. Without an ID, discover candidates and resolve ambiguity before continuing.
+- In Codex, pasting and sending `$trivy-porter ...` explicitly invokes this installed skill. Accept legacy `/trivy-porter ...` text as equivalent input for compatibility. Other agents may use their own skill picker; preserve the supplied action and arguments.
 - Terminal `trivy-porter` starts configuration and a scan. Terminal `trivy-porter continue --session SESSION_ID` resumes configuration or collects the next batch count after the agent has produced an inventory.
 - Terminal `trivy-porter --download` (or `trivy-porter -d`) exports the latest updated session with scan output to one sanitized JSON file in Downloads. Both forms accept the same session and destination options. An uploaded `trivy-porter-report` is evidence to analyze using step 2, not a new local session to create or overwrite. Follow the portable-report guidance in [session-state.md](references/session-state.md).
 - Terminal `trivy-porter --prompt` prints a copyable chat prompt for the uploaded JSON, ending with `Perbaiki terlebih dahulu dengan jumlah temuan: n`. Replace `n` with a positive finding count before sending; an unchanged `n` is a placeholder. Printing the prompt does not require a saved session.
 - Terminal `trivy-porter --clean` explicitly deletes the entire current directory's `.trivy-porter` folder without another prompt. Scoped `clean --session` and `clean --all` retain their preview and confirmation. Never run either cleanup automatically as part of analysis or remediation.
 - Resolve the CLI relative to this loaded skill: `python3 SKILL_DIR/scripts/trivy_porter.py [continue] --project PROJECT_PATH [--session SESSION_ID] [--state-dir STATE_ROOT]`. Use the available Python 3 interpreter and real quoted paths. If the `trivy-porter` command is installed, it is an equivalent convenience wrapper. Carry a supplied or remembered storage root through every CLI/helper operation and printed next action.
-- The leading slash denotes a chat invocation; it is not part of the terminal command. The terminal defaults are `fs`, no optional flags, all severities, and a batch size of `1`. Only a submitted answer or Enter accepts a default.
+- The `$trivy-porter` prefix denotes an explicit Codex skill invocation in chat; it is not a shell command. Terminal commands start with `trivy-porter` without `$`. The terminal defaults are `fs`, no optional flags, all severities, and a batch size of `1`. Only a submitted answer or Enter accepts a default.
 - Storage defaults to `<terminal cwd>/.trivy-porter`, after any explicit `--state-dir` or `TRIVY_PORTER_STATE_DIR` override. `--project` controls the scan directory, not that default. Preserve the absolute storage root from the handoff when the chat and terminal use different working directories.
 - Do not recreate these menus as successive chat questions or launch the interactive CLI in an agent-owned shell and wait for the user to type there. Provide a copyable command that runs in the user's terminal.
 
@@ -28,7 +30,7 @@ Read [interaction.md](references/interaction.md) for terminal handoffs and menu 
 
 Provide the CLI start command with the current canonical project directory explicitly supplied as `--project`. A terminal opened in a different directory otherwise creates a different project session. The bundled CLI checks installed Trivy help, asks for method/target, flags, and severity one stage at a time, and persists choices before running the selected command. If Trivy is unavailable, explain the prerequisite; do not silently install it.
 
-The CLI prints a session ID and `/trivy-porter continue SESSION_ID --project PROJECT_PATH --state-dir STATE_ROOT` when the scan output is ready for the agent. Wait for that complete chat handoff, or analyze an explicitly supplied exported report. A new terminal scan creates a separate session and preserves older ones. Use terminal `storage` to show paths and `sessions` to list saved sessions. `--download` exports existing evidence without scanning; cleanup behavior is described in [interaction.md](references/interaction.md). Do not delete sessions automatically after a batch or at completion.
+The CLI prints a session ID and `$trivy-porter analyze SESSION_ID --project PROJECT_PATH --state-dir STATE_ROOT` when the scan output is ready for the agent. Wait for that complete chat handoff, or analyze an explicitly supplied exported report. `analyze` is a chat instruction, not a terminal subcommand. Older chat `continue` handoffs for `awaiting_analysis` remain supported and follow the same initial-analysis step. A new terminal scan creates a separate session and preserves older ones. Use terminal `storage` to show paths and `sessions` to list saved sessions. `--download` exports existing evidence without scanning; cleanup behavior is described in [interaction.md](references/interaction.md). Do not delete sessions automatically after a batch or at completion.
 
 When managed storage is outside the filesystem scan target, all-default scanning remains exactly:
 
@@ -94,7 +96,7 @@ Save the updated inventory, batch evidence, staging/generation status, commit su
 2. For each item: problem, potential/observed impact, cause, actual solution, package versions and changed files, logic/flow impact, validation evidence, and final status.
 3. Commands/checks run and their results; skipped checks, blockers, residual risk, and remaining items.
 4. Staging status, staged scope, and the suggested commit message in one copyable code block containing its subject and description. Disclose pre-existing or earlier-batch changes included in the index, and any Git/generator blocker. The user performs the commit.
-5. The saved session ID and next action. If ordinary findings remain, give the terminal continue command for a fresh count, followed by the explicit chat handoff. If this batch still needs recovery or Git preparation, give `/trivy-porter continue SESSION_ID` to finish it without selecting another batch.
+5. The saved session ID and next action. If ordinary findings remain, give the terminal continue command for a fresh count, followed by the explicit chat handoff. If this batch still needs recovery or Git preparation, give `$trivy-porter continue SESSION_ID` to finish it without selecting another batch.
 
 Then stop. Do not start another batch, automatically submit the default, or immediately ask the next batch question in the same completion report. A final default batch size never authorizes fixing the full inventory.
 

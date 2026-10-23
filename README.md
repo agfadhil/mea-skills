@@ -57,7 +57,8 @@ Open the agent chat in your working repository, then select or invoke the skill 
 | [commit-message-generator](commit-message-generator/SKILL.md) | `/commit-message-generator` | Stages all repository changes by default, then suggests a commit subject and brief bulleted body following project rules. Use `no desc` for a one-line subject; `/commit` is also supported. |
 | [mr-description](mr-description/SKILL.md) | `/mr-description 6` | Generates an English MR/PR title and structured description from the last N commits, including commit IDs. Defaults to **1** commit if N is omitted. |
 | [trivy-porter](trivy-porter/SKILL.md) | `trivy-porter` in a terminal | Selects `fs` or `image` scans, flags, and severities locally, then hands the saved session to the agent for explanations and fixes. |
-| trivy-porter — continue | `/trivy-porter continue SESSION_ID` in the agent chat | Reads the saved session, explains findings in Indonesian, and remediates the batch selected in the terminal. Defaults to one finding per batch. |
+| trivy-porter — analyze | `$trivy-porter analyze SESSION_ID` in the agent chat | Reads the saved scan, explains findings in Indonesian, and creates an inventory before remediation is selected. |
+| trivy-porter — continue | `$trivy-porter continue SESSION_ID` in the agent chat | Resumes a remediation batch selected in the terminal or recovers interrupted work. Defaults to one finding per batch. |
 
 `commit-message-generator` automatically runs `git add -A` from the repository root before generating a subject and brief bullet-point description, including modified, new, and deleted files while respecting Git ignore rules. Pass `--only-staged` to preserve the current index and analyze only changes already staged. Add `no desc` for a one-line message; it combines with `--only-staged` in either order:
 
@@ -80,11 +81,17 @@ pnpm run trivy-porter --project /path/to/app
 
 The terminal handles the Indonesian menus, input validation, and Trivy execution locally. Press **Enter** to submit the displayed default. By default, the CLI keeps sessions in `.trivy-porter` under the terminal's current directory and prints the session ID and next action. Scan execution still takes the time required by Trivy; analysis and remediation still require the agent.
 
-After the scan, open Codex or another compatible agent in the application project and copy the complete handoff printed by the CLI, including its project and storage paths:
+After the scan, open Codex in the application project and paste the complete handoff printed by the CLI, including its project and storage paths. The `$trivy-porter` prefix explicitly invokes the installed skill in Codex:
 
 ```text
-/trivy-porter continue SESSION_ID --project /path/to/app --state-dir /path/to/trivy-results
+$trivy-porter analyze SESSION_ID --project /path/to/app --state-dir /path/to/trivy-results
 ```
+
+The completion panel separates the scan process outcome, saved session details, and next step. It adapts to terminal width and uses color when supported, respecting `NO_COLOR`. The complete copyable chat command appears outside the panel without inserted line breaks. A saved report still needs agent assessment of findings and coverage; an exit code alone is not that assessment.
+
+Send the pasted text as a chat message; terminal commands still start with `trivy-porter` without `$`. In another agent, select the installed skill using that agent's interface and keep the same action and arguments. Legacy `/trivy-porter ...` text remains recognized by the skill for compatibility, including older `continue` handoffs for sessions awaiting initial analysis.
+
+`analyze` is a chat instruction, not a terminal subcommand or a new scan. It analyzes saved evidence without starting remediation.
 
 When a findings inventory is ready, return to the terminal to select the next batch:
 
@@ -92,7 +99,7 @@ When a findings inventory is ready, return to the terminal to select the next ba
 pnpm run trivy-porter continue --project /path/to/app --session SESSION_ID
 ```
 
-Then copy the printed `/trivy-porter continue ...` handoff into the agent chat to process that batch. The terminal accepts a positive integer directly; `3` selects up to three related findings. Each completed batch stops for review before another batch is selected. Keep the same `--state-dir` when continuing a session saved in a custom location.
+Then copy the printed `$trivy-porter continue ...` handoff into the agent chat to process that batch. The terminal accepts a positive integer directly; `3` selects up to three related findings. Each completed batch stops for review before another batch is selected. Keep the same `--state-dir` when continuing a session saved in a custom location.
 
 An integrated VS Code terminal works like any other terminal. The CLI does not automatically send messages to the Codex extension, and does not require Codex CLI, an API key, or an additional npm dependency. The saved session provides the handoff between the terminal and agent.
 

@@ -21,6 +21,7 @@ import uuid
 
 import report_transfer
 import session_store as store
+import terminal_output
 
 
 CAPTURE_LIMIT = 4 * 1024 * 1024
@@ -165,13 +166,16 @@ class Session:
         self.data = store.save_data(self.data, self.data["session_id"], self.root, self.base, self.directory)
 
     def handoff(self):
-        print(f"\nSesi: {self.data['session_id']} (tahap: {self.data['stage']})")
-        print(f"Project: {self.root}")
-        print(f"Folder sesi: {self.directory}")
-        print("Kembali ke chat Codex/agent di editor, lalu kirim:")
-        print(command_display(["/trivy-porter", "continue", self.data["session_id"], "--project", self.root,
-                               "--state-dir", str(self.base)]))
-        print("Tidak ada pesan yang dikirim otomatis ke chat.")
+        action = "analyze" if self.data["stage"] == "awaiting_analysis" else "continue"
+        # The skill mention is chat syntax; quote only the arguments as needed.
+        command = "$trivy-porter " + command_display([
+            action, self.data["session_id"], "--project", self.root, "--state-dir", str(self.base),
+        ])
+        print(terminal_output.render_handoff(
+            self.data, self.root, self.base, command,
+            columns=shutil.get_terminal_size(fallback=(80, 24)).columns,
+            is_tty=sys.stdout.isatty(), environment=os.environ,
+        ), end="", flush=True)
 
     def terminal_command(self):
         return command_display(["trivy-porter", "continue", "--session", self.data["session_id"],
@@ -772,8 +776,6 @@ def run_scan(session, trivy, supported_flags=None):
     print("\n" + stdout)
     if raw[1]:
         print(stderr)
-    print(f"Trivy selesai: exit {exit_code}" + (" (terinterupsi)" if interrupted else ""))
-    print("Hasil perlu dianalisis di chat; exit code saja tidak membuktikan scan lengkap atau nol finding.")
     session.handoff()
     return 130 if interrupted else exit_code if exit_code >= 0 else 1
 

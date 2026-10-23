@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import stat
 import subprocess
 import sys
@@ -158,6 +159,15 @@ class TerminalIntegrationTests(unittest.TestCase):
         self.assertEqual(len(sessions), 1)
         return sessions[0]
 
+    def assert_chat_handoff(self, output, action, session_id):
+        arguments = [action, session_id, "--project", str(self.project.resolve()),
+                     "--state-dir", str(self.state.resolve())]
+        expected = "$trivy-porter " + (subprocess.list2cmdline(arguments) if os.name == "nt" else shlex.join(arguments))
+        commands = [line for line in output.splitlines() if line.startswith("$trivy-porter ")]
+        self.assertEqual(commands, [expected])
+        if os.name != "nt":
+            self.assertEqual(shlex.split(commands[0]), ["$trivy-porter", *arguments])
+
     def create_session(self, stage, **fields):
         payload = {
             "stage": stage, "pending_question": None, "origin": "terminal",
@@ -181,7 +191,7 @@ class TerminalIntegrationTests(unittest.TestCase):
         self.assertEqual(session["scan"]["argv_redacted"], ["trivy", "fs", "."])
         self.assertIsNone(session["scan"]["last_scan_complete"])
         self.assertEqual(session["scan"]["result"]["exit_code"], 0)
-        self.assertIn("/trivy-porter continue " + session["session_id"], result.stdout)
+        self.assert_chat_handoff(result.stdout, "analyze", session["session_id"])
         for name in ("stdout_path", "stderr_path"):
             artifact = Path(session["scan"]["result"][name])
             self.assertTrue(artifact.is_file())
@@ -210,7 +220,7 @@ class TerminalIntegrationTests(unittest.TestCase):
         after = self.only_session()
         self.assertEqual(after["stage"], "awaiting_analysis")
         self.assertIsNone(after.get("batch_request"))
-        self.assertIn("/trivy-porter continue " + before["session_id"], result.stdout)
+        self.assert_chat_handoff(result.stdout, "analyze", before["session_id"])
 
     def test_saved_table_artifacts_do_not_contain_secret_source(self):
         marker = "PRIVATE_FIXTURE_SECRET_123456789"
@@ -431,7 +441,7 @@ class TerminalIntegrationTests(unittest.TestCase):
 
     def test_batch_count_is_positive_integer_with_fresh_request(self):
         session = self.create_session("awaiting_batch", findings=[{"id": "F001", "status": "pending"}])
-        self.run_cli("0\n-1\n1.5\nwat\n3\n", "continue", "--session", session["session_id"])
+        result = self.run_cli("0\n-1\n1.5\nwat\n3\n", "continue", "--session", session["session_id"])
         updated = self.only_session()
         request = updated["batch_request"]
         self.assertEqual(request["count"], 3)
@@ -440,6 +450,7 @@ class TerminalIntegrationTests(unittest.TestCase):
         self.assertTrue(request["submitted_at"])
         self.assertEqual(self.calls(scans_only=True), [])
         self.assertEqual(list(self.project.iterdir()), [])
+        self.assert_chat_handoff(result.stdout, "continue", session["session_id"])
 
     def test_enter_submits_one_finding(self):
         session = self.create_session("awaiting_batch", findings=[{"id": "F001", "status": "pending"}])
@@ -456,8 +467,9 @@ class TerminalIntegrationTests(unittest.TestCase):
             "awaiting_batch", findings=[{"id": "F001", "status": "pending"}],
             batch_request={"id": "saved-request", "count": 2, "submitted_at": "2026-10-22T00:00:00Z", "status": "pending"},
         )
-        self.run_cli("9\n", "continue", "--session", session["session_id"])
+        result = self.run_cli("9\n", "continue", "--session", session["session_id"])
         self.assertEqual(self.only_session()["batch_request"], session["batch_request"])
+        self.assert_chat_handoff(result.stdout, "continue", session["session_id"])
 
     def test_consumed_request_needs_fresh_number_after_report(self):
         session = self.create_session(
@@ -478,9 +490,10 @@ class TerminalIntegrationTests(unittest.TestCase):
                     stage, findings=[{"id": "F001", "status": "in_progress"}],
                     batches=[{"git_preparation": git}],
                 )
-                self.run_cli("7\n", "continue", "--session", session["session_id"])
+                result = self.run_cli("7\n", "continue", "--session", session["session_id"])
                 updated = next(item for item in self.sessions() if item["session_id"] == session["session_id"])
                 self.assertIsNone(updated.get("batch_request"))
+                self.assert_chat_handoff(result.stdout, "continue", session["session_id"])
 
     def test_pending_git_substep_or_generation_blocker_prevents_new_batch(self):
         for git in ({"status": "generated", "pending_substep": "staging"},

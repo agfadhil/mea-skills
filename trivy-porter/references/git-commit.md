@@ -51,6 +51,6 @@ The report must show staging status/scope and the subject-plus-description in on
 
 ## 4. Continue without stale messages
 
-On `/trivy-porter continue`, compare the actual current HEAD, index, and repository state with saved evidence. The user may have committed, edited, staged, or unstaged files after the previous report. A saved message is historical unless both its HEAD and staged-diff fingerprint still match; regenerate from the current index after the required staging step when preparing a batch completion report. A normal continuation recap does not itself trigger staging or bypass the fresh batch-size question.
+On `$trivy-porter continue` (or its legacy `/trivy-porter continue` form), compare the actual current HEAD, index, and repository state with saved evidence. The user may have committed, edited, staged, or unstaged files after the previous report. A saved message is historical unless both its HEAD and staged-diff fingerprint still match; regenerate from the current index after the required staging step when preparing a batch completion report. A normal continuation recap does not itself trigger staging or bypass the fresh batch-size question.
 
 If interruption occurred between remediation, staging, and generation, finish only the pending substeps for that batch, save and report the result, then stop. A staging/generation blocker is not permission to start a new remediation batch. Return to terminal continue for a fresh batch request before any additional findings are selected.
