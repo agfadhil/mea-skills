@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyInstallPlan, createInstallPlan, getDefaultTargets, resolveDestination } from './skill-installer.mjs';
+import { renderInstallSuccess } from './installer-output.mjs';
 
 const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const actionLabels = { install: 'baru', update: 'perbarui (timpa versi lama)', unchanged: 'sudah sama, lewati' };
@@ -74,13 +75,9 @@ export async function runInstaller({
       print('Masukkan Y untuk melanjutkan atau N untuk membatalkan.');
     }
     const result = await applyInstallPlan(plan);
-    print();
-    print(`Selesai: ${result.installed.length} salinan skill dipasang/diperbarui; ${result.unchanged.length} salinan sudah sama.`);
-    for (const operation of result.installed) {
-      print(`- ${operation.destination}`);
-    }
-    print('Buka sesi Codex/Antigravity baru jika skill belum muncul.');
-    print('Untuk trivy-porter, siapkan Git, Trivy, dan Python 3 pada terminal agent.');
+    output.write(renderInstallSuccess(plan, result, {
+      columns: output.columns, isTTY: output.isTTY, environment,
+    }));
     return { cancelled: false, ...result };
   } catch (error) {
     if (!(error instanceof Cancelled)) throw error;
