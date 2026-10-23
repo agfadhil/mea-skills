@@ -110,7 +110,7 @@ When a findings inventory is ready, return to the terminal to select the next ba
 pnpm run trivy-porter continue --project /path/to/app --session SESSION_ID
 ```
 
-Then copy the printed `$trivy-porter continue ...` handoff into the agent chat to process that batch. The terminal accepts a positive integer directly; `3` selects up to three related findings. Each completed batch stops for review before another batch is selected. Keep the same `--state-dir` when continuing a session saved in a custom location.
+Then copy the printed `$trivy-porter continue ...` handoff into the agent chat to process that batch. The terminal accepts a nonnegative integer directly: `3` selects up to three related findings, while `0` requests all unresolved findings in the current inventory in one batch. Enter still selects one finding. All mode can organize work into related groups internally without another count prompt; blocked or unverified outcomes remain explicit. Each completed request stops for review before another scope is selected. Keep the same `--state-dir` when continuing a session saved in a custom location.
 
 An integrated VS Code terminal works like any other terminal. The CLI does not automatically send messages to the Codex extension, and does not require Codex CLI, an API key, or an additional npm dependency. The saved session provides the handoff between the terminal and agent.
 
@@ -146,11 +146,12 @@ trivy-porter --clean
 
 ```text
 $trivy-porter Analisis laporan JSON terlampir, jelaskan temuannya dan rekomendasi perbaikannya.
+Isi n dengan jumlah temuan; 0 = semua temuan.
 
 Perbaiki terlebih dahulu dengan jumlah temuan: n
 ```
 
-Upload the exported JSON to the agent chat, copy the printed prompt, and replace `n` with a positive number before sending it. The placeholder itself does not select a batch.
+Upload the exported JSON to the agent chat, copy the printed prompt, and replace `n` before sending it. Use `0` to analyze and handle all unresolved findings in that report in the same request, or a positive integer to limit the requested batch. In all mode, the agent must not stop after the first related group or ask for the same count again. The literal `n`, a negative value, a fraction, or an absent count does not authorize remediation. All mode preserves honest blockers and verification limits; newly discovered findings outside the selected inventory need a fresh request.
 
 `--clean` immediately removes the entire `.trivy-porter` folder in the terminal's current directory, including all partitions and unknown contents, without another confirmation. It does not use the storage environment override and cannot be combined with `--state-dir`, `--session`, `--all`, another action, or a different `--project`. A missing folder is a no-op; linked or mounted storage, an active scan/batch, or an ongoing state write is refused. Export before cleanup if you need the evidence. The default exported file in Downloads remains available after cleanup, as do files outside `.trivy-porter`, including user-selected Trivy output files.
 

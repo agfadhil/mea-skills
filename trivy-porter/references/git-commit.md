@@ -1,6 +1,6 @@
 # Stage all changes and suggest a commit
 
-After every remediation batch, complete verification, stage all repository changes, generate a suggested commit message with a description, include it in the Indonesian report, and stop. The user performs the commit. This is preparation only: do not run `git commit` or push.
+After every remediation batch, complete verification, stage all repository changes, generate a suggested commit message with a description, include it in the Indonesian report, and stop. For count `0`, internal related groups belong to one overall all-findings batch; handle the full selected snapshot before this final preparation/report, recording any blocked or unverified outcomes. The user performs the commit. This is preparation only: do not run `git commit` or push.
 
 ## 1. Stage the whole repository
 

@@ -68,6 +68,20 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
         self.assertEqual(len(files), 1)
         return files[0], json.loads(files[0].read_text(encoding="utf-8"))
 
+    def test_prompt_explains_zero_without_accessing_a_project_or_creating_state(self):
+        self.env["PATH"] = ""
+        missing_project = self.root / "project that does not exist"
+        new_state = self.root / "unused state folder"
+        result = self.run_cli("", "--prompt", "--state-dir", str(new_state), project=missing_project)
+        self.assertTrue(result.stdout.startswith("$trivy-porter "))
+        self.assertIn("0 = semua temuan", result.stdout)
+        self.assertEqual(result.stdout.splitlines()[-1],
+                         "Perbaiki terlebih dahulu dengan jumlah temuan: n")
+        self.assertFalse(missing_project.exists())
+        self.assertFalse(new_state.exists())
+        self.assertFalse(self.state.exists())
+        self.assertEqual(self.calls(), [])
+
     def test_clean_removes_the_entire_local_folder_without_a_prompt(self):
         local = self.project / ".trivy-porter"
         session = self.report_session(state=local)

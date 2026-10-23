@@ -27,6 +27,7 @@ import terminal_output
 CAPTURE_LIMIT = 4 * 1024 * 1024
 UPLOAD_PROMPT = (
     "$trivy-porter Analisis laporan JSON terlampir, jelaskan temuannya dan rekomendasi perbaikannya.\n"
+    "Isi n dengan jumlah temuan; 0 = semua temuan.\n"
     "\n"
     "Perbaiki terlebih dahulu dengan jumlah temuan: n"
 )
@@ -972,17 +973,18 @@ def continue_session(session):
             return 0
         print(f"Finding pending/unverified: {len(actionable)}")
         while True:
-            answer = ask("Berapa finding yang ingin ditangani pada batch ini? [1]: ") or "1"
+            answer = ask("Berapa finding yang ingin ditangani pada batch ini? (0 = semua) [1]: ") or "1"
             if answer == "default":
                 answer = "1"
-            if re.fullmatch(r"[0-9]+", answer) and int(answer) > 0:
+            if re.fullmatch(r"[0-9]+", answer):
                 break
-            print("Masukkan bilangan bulat positif, misalnya 1 atau 3.")
+            print("Masukkan 0 untuk semua temuan, atau bilangan bulat positif seperti 1 atau 3.")
         data["batch_request"] = {"id": uuid.uuid4().hex, "count": int(answer),
                                  "submitted_at": store.timestamp(), "status": "pending"}
         data["pending_question"] = None
         session.save()
-        print(f"Pilihan {int(answer)} finding disimpan. Belum ada file aplikasi yang diubah.")
+        selected = "semua temuan yang belum selesai" if int(answer) == 0 else f"{int(answer)} finding"
+        print(f"Pilihan {selected} disimpan. Belum ada file aplikasi yang diubah.")
         session.handoff()
         return 0
     return None
@@ -999,7 +1001,7 @@ def parse_args(argv=None):
     shortcuts = parser.add_mutually_exclusive_group()
     shortcuts.add_argument("--clean", action="store_true", help="Hapus seluruh folder .trivy-porter di cwd, tanpa pertanyaan tambahan.")
     shortcuts.add_argument("-d", "--download", action="store_true", help="Ekspor laporan sesi terbaru ke folder Downloads untuk diunggah ke agent.")
-    shortcuts.add_argument("--prompt", action="store_true", help="Cetak prompt untuk disalin ke chat bersama laporan JSON; ganti n dengan jumlah temuan.")
+    shortcuts.add_argument("--prompt", action="store_true", help="Cetak prompt laporan JSON; ganti n dengan jumlah temuan (0 = semua).")
     parser.add_argument("--download-dir", help="Folder tujuan --download (default: ~/Downloads).")
     return parser.parse_args(argv)
 
@@ -1021,7 +1023,7 @@ def main(argv=None):
         if args.prompt:
             print(UPLOAD_PROMPT)
             return 0
-        print("Trivy Porter — terminal (0 pada menu = batal; Ctrl+C untuk membatalkan input)")
+        print("Trivy Porter — terminal (0 pada menu = batal; pada jumlah temuan = semua; Ctrl+C = batal)")
         if args.clean:
             if args.state_dir is not None or args.session or args.all_sessions:
                 raise CliError("--clean hanya menghapus .trivy-porter lokal; untuk lokasi lain gunakan clean --session ID atau clean --all.")

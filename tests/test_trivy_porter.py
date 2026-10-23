@@ -457,7 +457,7 @@ class TerminalIntegrationTests(unittest.TestCase):
 
     def test_batch_count_is_positive_integer_with_fresh_request(self):
         session = self.create_session("awaiting_batch", findings=[{"id": "F001", "status": "pending"}])
-        result = self.run_cli("0\n-1\n1.5\nwat\n3\n", "continue", "--session", session["session_id"])
+        result = self.run_cli("-1\n1.5\nwat\n3\n", "continue", "--session", session["session_id"])
         updated = self.only_session()
         request = updated["batch_request"]
         self.assertEqual(request["count"], 3)
@@ -465,6 +465,26 @@ class TerminalIntegrationTests(unittest.TestCase):
         self.assertTrue(request["id"])
         self.assertTrue(request["submitted_at"])
         self.assertEqual(self.calls(scans_only=True), [])
+        self.assertEqual(list(self.project.iterdir()), [])
+        self.assert_chat_handoff(result.stdout, "continue", session["session_id"])
+
+    def test_zero_submits_fresh_all_findings_request_without_running_remediation(self):
+        findings = [{"id": "F001", "status": "pending"},
+                    {"id": "F002", "status": "unverified"},
+                    {"id": "F003", "status": "resolved"},
+                    {"id": "F004", "status": "blocked"}]
+        session = self.create_session("awaiting_batch", findings=findings)
+        result = self.run_cli("0\n", "continue", "--session", session["session_id"])
+        updated = self.only_session()
+        request = updated["batch_request"]
+        self.assertEqual(request["count"], 0)
+        self.assertEqual(request["status"], "pending")
+        self.assertRegex(request["id"], r"^[0-9a-f]{32}$")
+        self.assertTrue(request["submitted_at"])
+        self.assertEqual(updated["findings"], findings)
+        self.assertEqual(updated["batches"], [])
+        self.assertEqual(updated["stage"], "awaiting_batch")
+        self.assertEqual(self.calls(), [])
         self.assertEqual(list(self.project.iterdir()), [])
         self.assert_chat_handoff(result.stdout, "continue", session["session_id"])
 
@@ -478,6 +498,12 @@ class TerminalIntegrationTests(unittest.TestCase):
         self.run_cli("", "continue", "--session", session["session_id"], expected=130)
         self.assertIsNone(self.only_session().get("batch_request"))
 
+    def test_zero_still_cancels_the_method_menu_without_creating_a_session(self):
+        self.run_cli("0\n", expected=130)
+        self.assertFalse(self.state.exists())
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(list(self.project.iterdir()), [])
+
     def test_existing_pending_request_is_not_replaced_or_reused(self):
         session = self.create_session(
             "awaiting_batch", findings=[{"id": "F001", "status": "pending"}],
@@ -485,6 +511,17 @@ class TerminalIntegrationTests(unittest.TestCase):
         )
         result = self.run_cli("9\n", "continue", "--session", session["session_id"])
         self.assertEqual(self.only_session()["batch_request"], session["batch_request"])
+        self.assert_chat_handoff(result.stdout, "continue", session["session_id"])
+
+    def test_existing_pending_all_request_is_not_replaced(self):
+        session = self.create_session(
+            "awaiting_batch", findings=[{"id": "F001", "status": "pending"}],
+            batch_request={"id": "saved-all-request", "count": 0,
+                           "submitted_at": "2026-10-22T00:00:00Z", "status": "pending"},
+        )
+        result = self.run_cli("2\n", "continue", "--session", session["session_id"])
+        self.assertEqual(self.only_session()["batch_request"], session["batch_request"])
+        self.assertEqual(self.calls(), [])
         self.assert_chat_handoff(result.stdout, "continue", session["session_id"])
 
     def test_consumed_request_needs_fresh_number_after_report(self):
@@ -498,6 +535,21 @@ class TerminalIntegrationTests(unittest.TestCase):
         self.assertEqual(request["count"], 2)
         self.assertEqual(request["status"], "pending")
         self.assertNotEqual(request["id"], "old-request")
+
+    def test_consumed_all_request_needs_fresh_submission_instead_of_reusing_zero(self):
+        session = self.create_session(
+            "paused", findings=[{"id": "F002", "status": "pending"}],
+            batches=[{"git_preparation": {"status": "generated", "generation_status": "generated"}}],
+            batch_request={"id": "old-all-request", "count": 0,
+                           "submitted_at": "2026-10-22T00:00:00Z", "status": "consumed"},
+        )
+        self.run_cli("", "continue", "--session", session["session_id"], expected=130)
+        self.assertEqual(self.only_session()["batch_request"], session["batch_request"])
+        self.run_cli("2\n", "continue", "--session", session["session_id"])
+        request = self.only_session()["batch_request"]
+        self.assertEqual(request["count"], 2)
+        self.assertEqual(request["status"], "pending")
+        self.assertNotEqual(request["id"], "old-all-request")
 
     def test_interrupted_batch_and_pending_git_never_get_new_count(self):
         for stage, git in (("batch_in_progress", {}), ("paused", {"status": "blocked", "generation_status": "blocked"})):
