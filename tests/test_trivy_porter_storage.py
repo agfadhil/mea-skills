@@ -33,11 +33,16 @@ class StorageIntegrationTests(unittest.TestCase):
         return (state or self.state) / hashlib.sha256(root.encode("utf-8")).hexdigest()
 
     def session_file(self, session, project=None, state=None):
+        base = state or self.state
+        for path in base.glob("*/session.json"):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data["session_id"] == session["session_id"]:
+                return path.resolve()
         return self.directory(project, state) / (session["session_id"] + ".json")
 
     def artifact(self, session, suffix="stdout.txt", run="a" * 32):
         filename = session["session_id"] + "." + run + "." + suffix
-        path = self.directory() / filename
+        path = self.session_file(session).parent / filename
         path.write_text("sanitized fixture\n", encoding="utf-8")
         return path
 
@@ -45,7 +50,6 @@ class StorageIntegrationTests(unittest.TestCase):
         self.env["PATH"] = ""
         result = self.run_cli("", "storage")
         self.assertIn(str(self.state.resolve()), result.stdout)
-        self.assertIn(str(self.directory().resolve()), result.stdout)
         self.assertFalse(self.state.exists())
 
     def test_sessions_lists_only_current_project_without_trivy(self):
@@ -63,7 +67,7 @@ class StorageIntegrationTests(unittest.TestCase):
     def test_explicit_state_dir_overrides_environment_and_is_shared_with_helper(self):
         explicit = self.root / "visible scan results"
         result = self.run_cli("\n\n\n", "--state-dir", str(explicit))
-        stored = list(self.directory(state=explicit).glob("*.json"))
+        stored = list(explicit.glob("*/session.json"))
         self.assertEqual(len(stored), 1)
         self.assertFalse(self.state.exists())
         session = json.loads(stored[0].read_text(encoding="utf-8"))
@@ -104,7 +108,7 @@ class StorageIntegrationTests(unittest.TestCase):
         session = self.create_session("complete")
         self.assertTrue(self.session_file(session).exists())
         self.assertEqual(stat.S_IMODE(self.state.stat().st_mode), 0o755)
-        self.assertEqual(stat.S_IMODE(self.directory().stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(self.session_file(session).parent.stat().st_mode), 0o700)
 
     def test_clean_requires_explicit_session_or_all_scope(self):
         session = self.create_session("complete")
@@ -126,14 +130,14 @@ class StorageIntegrationTests(unittest.TestCase):
         other = self.create_session("complete")
         stdout = self.artifact(selected)
         stderr = self.artifact(selected, "stderr.txt")
-        legacy = self.directory() / (selected["session_id"] + ".stdout.txt")
+        legacy = self.session_file(selected).parent / (selected["session_id"] + ".stdout.txt")
         legacy.write_text("legacy sanitized fixture\n", encoding="utf-8")
         other_artifact = self.artifact(other)
-        unrelated = self.directory() / "notes.txt"
+        unrelated = self.session_file(selected).parent / "notes.txt"
         unrelated.write_text("keep me", encoding="utf-8")
-        unrelated_json = self.directory() / "notes.json"
+        unrelated_json = self.session_file(selected).parent / "notes.json"
         unrelated_json.write_text("not a session payload", encoding="utf-8")
-        malformed = self.directory() / (selected["session_id"] + ".not-a-run-id.stdout.txt")
+        malformed = self.session_file(selected).parent / (selected["session_id"] + ".not-a-run-id.stdout.txt")
         malformed.write_text("keep unknown name", encoding="utf-8")
         result = self.run_cli("y\n", "clean", "--session", selected["session_id"])
         self.assertIn(str(stdout), result.stdout)
@@ -183,7 +187,7 @@ class StorageIntegrationTests(unittest.TestCase):
         self.assertTrue(self.session_file(session).exists())
 
     def test_clean_refuses_active_scan_or_batch(self):
-        for stage, pending in (("batch_in_progress", None), ("configuring", "scan_running")):
+        for stage, pending in (("batch_in_progress", None), ("configuring", "scan_running"), ("configuring", "build_running")):
             with self.subTest(stage=stage):
                 session = self.create_session(stage, pending_question=pending)
                 artifact = self.artifact(session)
@@ -197,7 +201,7 @@ class StorageIntegrationTests(unittest.TestCase):
         session = self.create_session("complete")
         external = self.root / "outside-state.txt"
         external.write_text("never delete this", encoding="utf-8")
-        link = self.directory() / (session["session_id"] + "." + "b" * 32 + ".stdout.txt")
+        link = self.session_file(session).parent / (session["session_id"] + "." + "b" * 32 + ".stdout.txt")
         link.symlink_to(external)
         self.run_cli("y\n", "clean", "--session", session["session_id"], expected=None)
         self.assertEqual(external.read_text(encoding="utf-8"), "never delete this")

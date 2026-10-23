@@ -7,13 +7,14 @@ Callers must remove credentials and secret snippets before submitting JSON.
 
 import argparse
 import copy
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -28,11 +29,20 @@ SCHEMA_VERSION = 1
 MANAGED = {"schema_version", "project_root", "session_id", "revision", "created_at", "updated_at"}
 SESSION_ID = re.compile(r"[0-9a-f]{32}\Z")
 PARTITION_ID = re.compile(r"[0-9a-f]{64}\Z")
+RUN_DIRECTORY = re.compile(r"[0-9]{8}-[0-9]{4}-(?:fs|image|scan)(?:-[1-9][0-9]*)?\Z")
 STORAGE_IGNORE = "# Trivy Porter session storage\n*\n"
 
 
 class StoreError(Exception):
     pass
+
+
+def linked(path):
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & 0x400)
 
 
 def timestamp():
@@ -58,7 +68,7 @@ def project_context(project, state_dir=None):
 
 
 def validate_id(session_id):
-    if not SESSION_ID.fullmatch(session_id):
+    if not isinstance(session_id, str) or not SESSION_ID.fullmatch(session_id):
         raise StoreError("Session ID must be the 32-character hexadecimal ID returned by create.")
 
 
@@ -73,7 +83,7 @@ def reject_constant(value):
     raise StoreError(f"Non-JSON numeric constant is not permitted: {value}")
 
 
-def read_json(path):
+def read_json(path, validate=True):
     try:
         if str(path) == "-":
             data = json.load(sys.stdin, parse_constant=reject_constant)
@@ -82,19 +92,20 @@ def read_json(path):
                 data = json.load(handle, parse_constant=reject_constant)
     except (OSError, ValueError) as exc:
         raise StoreError(f"Cannot read session JSON: {exc}") from exc
-    validate_payload(data)
+    if validate:
+        validate_payload(data)
     return data
 
 
 def read_stored(path, project_root):
-    if path.is_symlink() or not path.is_file():
+    if linked(path) or not path.is_file():
         raise StoreError(f"Session is not a regular file: {path.name}")
     data = read_json(path)
     if type(data.get("schema_version")) is not int or data["schema_version"] != SCHEMA_VERSION:
         raise StoreError(f"Unsupported stored schema_version; expected {SCHEMA_VERSION}: {path.name}")
-    if data.get("project_root") != project_root or data.get("session_id") != path.stem:
+    if data.get("project_root") != project_root or (path.name != "session.json" and data.get("session_id") != path.stem):
         raise StoreError(f"Stored session identity does not match its project or filename: {path.name}")
-    validate_id(data["session_id"])
+    validate_id(data.get("session_id"))
     if type(data.get("revision")) is not int or data["revision"] < 1:
         raise StoreError(f"Stored session has an invalid revision: {path.name}")
     if not all(isinstance(data.get(key), str) and data[key] for key in ("created_at", "updated_at")):
@@ -102,14 +113,67 @@ def read_stored(path, project_root):
     return data
 
 
-def load_sessions(directory, project_root):
-    if not directory.exists():
+def owned_directory(path):
+    if linked(path) or not path.is_dir():
+        return False
+    marker = path / ".gitignore"
+    return (not linked(marker) and marker.is_file()
+            and marker.stat().st_size == len(STORAGE_IGNORE.encode("utf-8"))
+            and marker.read_text(encoding="utf-8") == STORAGE_IGNORE)
+
+
+def session_paths(directory, project_root):
+    """Discover readable folders and the original project-hash layout."""
+    base = directory.parent
+    if not base.exists():
         return []
-    if directory.is_symlink() or not directory.is_dir():
+    if linked(base) or not base.is_dir() or linked(directory):
         raise StoreError("Project state path must be a directory, not a symlink.")
-    sessions = [read_stored(path, project_root) for path in directory.glob("*.json")
-                if SESSION_ID.fullmatch(path.stem)]
+    paths = []
+    if directory.exists():
+        if not directory.is_dir():
+            raise StoreError("Project state path must be a directory.")
+        paths.extend(path for path in directory.glob("*.json") if SESSION_ID.fullmatch(path.stem))
+    for folder in base.iterdir():
+        if not RUN_DIRECTORY.fullmatch(folder.name) or not owned_directory(folder):
+            continue
+        path = folder / "session.json"
+        if not path.exists() and not linked(path):
+            continue
+        # Shared custom roots can contain sessions for more than one project.
+        if linked(path) or not path.is_file():
+            raise StoreError("Session metadata must be a regular file.")
+        data = read_json(path, validate=False)
+        if isinstance(data, dict) and data.get("project_root") == project_root:
+            paths.append(path)
+    return paths
+
+
+def load_sessions(directory, project_root):
+    sessions = [read_stored(path, project_root) for path in session_paths(directory, project_root)]
+    identifiers = [item["session_id"] for item in sessions]
+    if len(set(identifiers)) != len(identifiers):
+        raise StoreError("Duplicate stored session IDs; inspect storage before continuing.")
     return sorted(sessions, key=lambda item: (item["created_at"], item["session_id"]), reverse=True)
+
+
+def session_path(session_id, project_root, directory):
+    validate_id(session_id)
+    candidates = []
+    for path in session_paths(directory, project_root):
+        data = read_stored(path, project_root)
+        if data["session_id"] == session_id:
+            candidates.append(path)
+    if len(candidates) != 1:
+        raise StoreError("Session was not found for this project, or its ID is duplicated.")
+    return candidates[0]
+
+
+def session_directory(data, base, directory):
+    """Return the actual folder while project_context retains its legacy key."""
+    if directory.parent != base:
+        raise StoreError("Session storage context does not match its root.")
+    return session_path(data["session_id"], data["project_root"], directory).parent
 
 
 def summary(data):
@@ -119,7 +183,7 @@ def summary(data):
 def ensure_storage_ignore(directory):
     """Ignore only this managed partition, even when the chosen root is an app."""
     path = directory / ".gitignore"
-    if path.is_symlink() or (path.exists() and not path.is_file()):
+    if linked(path) or (path.exists() and not path.is_file()):
         raise StoreError("Storage .gitignore must be a regular file.")
     if path.exists():
         if path.read_text(encoding="utf-8") != STORAGE_IGNORE:
@@ -133,17 +197,12 @@ def ensure_storage_ignore(directory):
 
 
 def managed_partitions(base, current):
-    """Find owned partitions without claiming arbitrary files in a custom root."""
-    result = {current}
-    for path in base.iterdir():
-        if not PARTITION_ID.fullmatch(path.name) or path.is_symlink() or not path.is_dir():
-            continue
-        marker = path / ".gitignore"
-        if marker.is_symlink() or not marker.is_file():
-            continue
-        if marker.stat().st_size == len(STORAGE_IGNORE.encode("utf-8")) and marker.read_text(encoding="utf-8") == STORAGE_IGNORE:
-            result.add(path)
-    return sorted(result)
+    """Only marker-owned folders are excluded, never an entire custom root."""
+    if not base.is_dir():
+        return []
+    return sorted(path for path in base.iterdir()
+                  if (PARTITION_ID.fullmatch(path.name) or RUN_DIRECTORY.fullmatch(path.name)
+                      or path.name == ".locks") and owned_directory(path))
 
 
 def cleanup_plan(project, state_dir=None, session_id=None, all_sessions=False):
@@ -158,18 +217,23 @@ def cleanup_plan(project, state_dir=None, session_id=None, all_sessions=False):
         sessions = load_sessions(directory, project_root)
     files = []
     for data in sessions:
-        if data["stage"] == "batch_in_progress" or data.get("pending_question") == "scan_running":
-            raise StoreError(f"Session {data['session_id']} has an active scan/batch. Finish or recover it before cleanup.")
+        if data["stage"] == "batch_in_progress" or data.get("pending_question") in {"scan_running", "build_running"}:
+            raise StoreError(f"Session {data['session_id']} has an active scan/build/batch. Finish or recover it before cleanup.")
         sid = data["session_id"]
+        metadata = session_path(sid, project_root, directory)
+        folder = metadata.parent
         pattern = re.compile(rf"{sid}(?:\.[0-9a-f]{{32}})?\.(?:stdout|stderr)\.txt\Z")
-        candidates = [directory / f"{sid}.json"]
-        candidates.extend(path for path in directory.glob(f"{sid}.*") if pattern.fullmatch(path.name))
+        readable = {"report.json", "scan.stdout.txt", "scan.stderr.txt", "build.stdout.txt", "build.stderr.txt"}
+        candidates = [metadata]
+        candidates.extend(path for path in folder.iterdir()
+                          if pattern.fullmatch(path.name) or (metadata.name == "session.json" and path.name in readable))
         for path in candidates:
-            if path.is_symlink() or not path.is_file():
+            if linked(path) or not path.is_file():
                 raise StoreError(f"Cleanup refuses non-regular session files: {path.name}")
             info = path.lstat()
-            files.append({"name": path.name, "identity": [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns]})
-    return {"project_root": project_root, "state_root": str(base), "directory": str(directory),
+            files.append({"name": path.relative_to(base).as_posix(),
+                          "identity": [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns]})
+    return {"project_root": project_root, "state_root": str(base), "directory": str(base),
             "session_id": session_id, "all_sessions": all_sessions,
             "sessions": [summary(data) for data in sessions],
             "files": sorted(files, key=lambda item: item["name"])}
@@ -188,7 +252,7 @@ def delete_sessions(plan):
         # or recursively remove a folder that could contain another writer's files.
         deleted = []
         for item in sorted(plan["files"], key=lambda item: (item["name"].endswith(".json"), item["name"])):
-            path = directory / item["name"]
+            path = base / item["name"]
             path.unlink()
             deleted.append(str(path))
         return deleted
@@ -196,13 +260,29 @@ def delete_sessions(plan):
 
 @contextmanager
 def project_lock(base, directory):
-    for folder in (base, directory):
-        if folder.is_symlink():
-            raise StoreError("State directories must not be symlinks.")
-        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if folder == directory:
-            os.chmod(folder, 0o700)
-    lock_path = directory / ".lock"
+    if linked(base) or linked(directory):
+        raise StoreError("State directories must not be symlinks.")
+    base.mkdir(mode=0o700, parents=True, exist_ok=True)
+    locks = base / ".locks"
+    if linked(locks):
+        raise StoreError("Storage lock directory must not be a symlink.")
+    locks.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(locks, 0o700)
+    lock_path = locks / "store.lock"
+    with ExitStack() as handles:
+        handles.enter_context(file_lock(lock_path))
+        ensure_storage_ignore(locks)
+        # Older helpers synchronize legacy JSON through this existing project
+        # folder; use the same lock when updating those sessions.
+        if directory.is_dir():
+            handles.enter_context(file_lock(directory / ".lock"))
+        yield
+
+
+@contextmanager
+def file_lock(lock_path):
+    if linked(lock_path) or (lock_path.exists() and not lock_path.is_file()):
+        raise StoreError("Storage lock must be a regular file.")
     flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(lock_path, flags, 0o600)
     with os.fdopen(fd, "r+b") as handle:
@@ -218,7 +298,6 @@ def project_lock(base, directory):
             import fcntl
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
         try:
-            ensure_storage_ignore(directory)
             yield
         finally:
             if os.name == "nt":
@@ -266,22 +345,33 @@ def create_data(payload, project_root, base, directory):
     if supplied:
         raise StoreError("create input must omit helper-managed fields: " + ", ".join(sorted(supplied)))
     with project_lock(base, directory):
-        while True:
+        session_id = uuid.uuid4().hex
+        while any(item["session_id"] == session_id for item in load_sessions(directory, project_root)):
             session_id = uuid.uuid4().hex
-            path = directory / f"{session_id}.json"
-            if not path.exists() and not path.is_symlink():
+        scan = data.get("scan") if isinstance(data.get("scan"), dict) else {}
+        action = scan.get("method") if scan.get("method") in {"fs", "image"} else "scan"
+        label = datetime.now().astimezone().strftime("%Y%m%d-%H%M-") + action
+        number = 1
+        while True:
+            folder = base / (label if number == 1 else label + "-" + str(number))
+            try:
+                folder.mkdir(mode=0o700)
                 break
+            except FileExistsError:
+                number += 1
+        ensure_storage_ignore(folder)
         now = timestamp()
         data.update(schema_version=SCHEMA_VERSION, project_root=project_root, session_id=session_id, revision=1,
                     created_at=now, updated_at=now)
-        write_atomic(path, data)
+        write_atomic(folder / "session.json", data)
+
     return data
 
 
 def read(args, project_root, directory):
     if args.session:
         validate_id(args.session)
-        return read_stored(directory / f"{args.session}.json", project_root)
+        return read_stored(session_path(args.session, project_root, directory), project_root)
     sessions = load_sessions(directory, project_root)
     if not sessions:
         raise StoreError("No saved sessions for this project.")
@@ -312,7 +402,7 @@ def save_data(payload, session_id, project_root, base, directory):
     if type(data.get("revision")) is not int or data["revision"] < 1:
         raise StoreError("save input must include the positive integer revision returned by read.")
     with project_lock(base, directory):
-        path = directory / f"{session_id}.json"
+        path = session_path(session_id, project_root, directory)
         current = read_stored(path, project_root)
         if data["revision"] != current["revision"]:
             raise StoreError(

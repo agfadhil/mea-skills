@@ -1,6 +1,5 @@
 """Exercise explicit local cleanup and portable reports using temporary files."""
 
-import hashlib
 import importlib
 import io
 import json
@@ -28,9 +27,14 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
     calls = scan_tests.TerminalIntegrationTests.calls
     create_session = scan_tests.TerminalIntegrationTests.create_session
 
-    def directory(self, state=None, project=None):
+    def directory(self, state=None, project=None, session=None):
         project_root = str((project or self.project).resolve())
-        return (state or self.state) / hashlib.sha256(project_root.encode("utf-8")).hexdigest()
+        matches = []
+        for path in (state or self.state).glob("*/session.json"):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("project_root") == project_root and (session is None or data["session_id"] == session["session_id"]):
+                matches.append((data["created_at"], path.parent))
+        return max(matches)[1] if matches else (state or self.state)
 
     def save(self, session, state=None, project=None):
         result = subprocess.run(
@@ -45,7 +49,7 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
         selected_state = state or self.state
         with patch.dict(self.env, {"TRIVY_PORTER_STATE_DIR": str(selected_state)}):
             session = self.create_session("awaiting_analysis", **fields)
-        partition = self.directory(state=selected_state)
+        partition = self.directory(state=selected_state, session=session)
         prefix = session["session_id"] + "." + "a" * 32
         stdout = partition / (prefix + ".stdout.txt")
         stderr = partition / (prefix + ".stderr.txt")
@@ -80,7 +84,7 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
         self.assertFalse(local.exists())
         self.assertEqual(application.read_text(encoding="utf-8"), "keep application")
         self.assertEqual(raw_output.read_text(encoding="utf-8"), "keep raw output")
-        self.assertTrue((self.directory() / (external["session_id"] + ".json")).is_file())
+        self.assertTrue((self.directory(session=external) / "session.json").is_file())
         self.assertNotIn("[y/N]", result.stdout)
         self.assertEqual(self.calls(), [])
 
@@ -148,13 +152,13 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
 
     def test_clean_refuses_saved_active_work(self):
         local = self.project / ".trivy-porter"
-        for stage, pending in (("batch_in_progress", None), ("configuring", "scan_running")):
+        for stage, pending in (("batch_in_progress", None), ("configuring", "scan_running"), ("configuring", "build_running")):
             with self.subTest(stage=stage):
                 with patch.dict(self.env, {"TRIVY_PORTER_STATE_DIR": str(local)}):
                     session = self.create_session(stage, pending_question=pending)
                 result = self.run_cli("", "--clean", expected=None)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertTrue((self.directory(state=local) / (session["session_id"] + ".json")).is_file())
+                self.assertTrue((self.directory(state=local, session=session) / "session.json").is_file())
 
     def test_quick_command_conflicts_do_not_delete_or_scan(self):
         local = self.project / ".trivy-porter"

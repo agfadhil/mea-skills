@@ -81,6 +81,17 @@ pnpm run trivy-porter --project /path/to/app
 
 The terminal handles the Indonesian menus, input validation, and Trivy execution locally. Press **Enter** to submit the displayed default. By default, the CLI keeps sessions in `.trivy-porter` under the terminal's current directory and prints the session ID and next action. Scan execution still takes the time required by Trivy; analysis and remediation still require the agent.
 
+Selecting **image** builds the current project locally, then scans the built image:
+
+```sh
+docker build --platform=linux/amd64 -t app:scan .
+trivy image --image-src docker --format json app:scan
+```
+
+Here `app` is the project directory name, normalized to a valid lowercase Docker image name. With `--project`, both commands run in that project. Image source and JSON format are fixed; other supported scanner/filter choices and severity remain available. The scan runs only after the build succeeds. A failed/interrupted build is saved for an explicit retry through terminal `continue`, without scanning an older image. The sanitized JSON is saved as `report.json`; `trivy-porter -d` still exports the portable upload report. Existing saved image-reference/archive sessions can still be resumed with their original source.
+
+Add `.trivy-porter/` to the project's `.dockerignore` when session storage is inside the build context, so reports and metadata are not copied into the image. The CLI does not edit that file automatically.
+
 After the scan, open Codex in the application project and paste the complete handoff printed by the CLI, including its project and storage paths. The `$trivy-porter` prefix explicitly invokes the installed skill in Codex:
 
 ```text
@@ -150,7 +161,22 @@ cd /path/to/app
 trivy-porter
 ```
 
-The storage root is `/path/to/app/.trivy-porter/`. Each project's sessions are separated in a subdirectory based on its canonical path. `--project` selects the scan directory and session identity; it does not change the storage default when you launch the CLI from somewhere else. For example, running `pnpm run trivy-porter --project /path/to/app` from this repository stores sessions under this repository's `.trivy-porter/`.
+The storage root is `/path/to/app/.trivy-porter/`. New sessions use local creation time and scan action in the folder name: `YYYYMMDD-HHMM-image` or `YYYYMMDD-HHMM-fs`. If that name already exists, the next folder uses `-2`, `-3`, and so on. The internal session ID stays in `session.json` for chat continuation; it is not the folder name. For example:
+
+```text
+.trivy-porter/
+  20261023-1430-image/
+    session.json
+    report.json
+    scan.stderr.txt
+    build.stdout.txt
+    build.stderr.txt
+  20261023-1440-fs/
+    session.json
+    ...
+```
+
+Sessions remain isolated by their saved canonical project path, even when projects share a custom storage root. Old hash/session-ID layouts remain readable without being moved. `--project` selects the scan/build directory and session identity; it does not change the storage default when you launch the CLI from somewhere else. For example, running `pnpm run trivy-porter --project /path/to/app` from this repository stores sessions under this repository's `.trivy-porter/`.
 
 Choose a different folder with `--state-dir`:
 
@@ -160,7 +186,7 @@ pnpm run trivy-porter --project /path/to/app --state-dir /path/to/trivy-results
 
 Relative paths resolve from the terminal's working directory. Precedence is `--state-dir`, then `TRIVY_PORTER_STATE_DIR`, then `<terminal cwd>/.trivy-porter/`; `XDG_STATE_HOME` no longer sets the default. Changing the root does not move existing sessions. Older sessions remain accessible by passing their original root, such as `--state-dir ~/.local/state/trivy-porter` (or their former XDG path). The printed chat handoff includes the resolved storage root, so the agent does not depend on inheriting your terminal's environment or current directory.
 
-Each managed hash partition contains its own `.gitignore` so generated session files stay out of Git without editing the storage root or application's root `.gitignore`. Already tracked storage is refused rather than silently removed from the index. For filesystem scans, the CLI displays and records a `--skip-dirs` argument for each marker-owned managed partition inside the target, leaving other files in a custom storage root visible to the scan. It preserves explicit user exclusions or the nonempty `TRIVY_SKIP_DIRS` list. If a YAML configuration's inherited exclusions cannot be established, it returns to flag customization or cancellation instead of overriding them. Verification uses the saved exclusions, and reports disclose them. Storage outside the target needs no extra scan argument.
+Each managed session folder and hidden `.locks` directory contains its own `.gitignore` so generated files stay out of Git without editing the storage root or application's root `.gitignore`. Already tracked storage is refused rather than silently removed from the index. For filesystem scans, the CLI displays and records a `--skip-dirs` argument for each marker-owned session/lock folder and legacy partition inside the target, leaving other files in a custom storage root visible to the scan. It preserves explicit user exclusions or the nonempty `TRIVY_SKIP_DIRS` list. If a YAML configuration's inherited exclusions cannot be established, it returns to flag customization or cancellation instead of overriding them. Verification uses the saved exclusions, and reports disclose them. Storage outside the target needs no extra scan argument.
 
 Inspect the exact location or list sessions without running Trivy:
 
@@ -185,7 +211,7 @@ The scoped `clean` subcommand previews recognized session files and asks `[y/N]`
 The installer only copies skill files. The IDE/agent extension, Git, Trivy, and Python must be installed separately as needed:
 
 - **commit-message-generator** and **mr-description** require Git in the working repository.
-- **trivy-porter** requires Trivy, Git for staging/commit suggestions, and Python 3 for its interactive CLI and session state management. The Node launcher also requires Node.js 20 or later and automatically locates Python 3. The container image workflow also requires container runtime/image access and an appropriate build environment when rebuilding images.
+- **trivy-porter** requires Trivy, Git for staging/commit suggestions, and Python 3 for its interactive CLI and session state management. The Node launcher also requires Node.js 20 or later and automatically locates Python 3. Image scans require Docker in PATH, a running Docker daemon, and a project Dockerfile/build context that supports `linux/amd64`.
 - On Windows, ensure `trivy.exe` and Git are available in both the terminal and agent's PATH. Python 3 may be invoked via `python3`, `python`, or `py -3`; ensure an executable is available when running the CLI or session helper.
 
 ## Troubleshooting Skill Discovery

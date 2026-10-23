@@ -55,12 +55,14 @@ The existing `clean --session SESSION_ID` and `clean --all` subcommands remain s
 Use Indonesian prompts. These are separate questions, not one bundled form:
 
 1. Method (`fs` first/default, `image` second).
-2. Image reference or explicitly selected `--input` archive when needed; a required target has no fabricated default. An archive-only scan needs no image reference. This input selection remains part of the command when later customization adds no other flags.
+2. For new image scans, derive the local `REPO_NAME:scan` target from the selected project directory; there is no image-reference/archive question. Existing saved image/archive sessions retain their pending source question and recorded target.
 3. Custom flags and each flag's values.
 4. Severity.
 5. After the agent has analyzed the scan and saved an inventory, batch size on a separate terminal continuation.
 
-Every actual default is option 1. A submitted Enter accepts the default; EOF, Ctrl+C, preselection, elapsed time, and silence do not. Save answered choices so terminal continue resumes the pending stage rather than restarting the wizard. A required image reference/path has no default.
+Every actual default is option 1. A submitted Enter accepts the default; EOF, Ctrl+C, preselection, elapsed time, and silence do not. Save answered choices so terminal continue resumes the pending stage rather than restarting the wizard. A required legacy image reference/path has no default.
+
+For the new image action, execute `docker build --platform=linux/amd64 -t REPO_NAME:scan .` from the selected project, then `trivy image --image-src docker --format json REPO_NAME:scan` after a successful build. Scanner/filter and severity answers add their normal arguments. Source and JSON output are fixed workflow settings: exclude `--input`, `--image-src`, `--format`, and `--output` from customization and reject direct attempts to override them. If environment/configuration could supply inherited input/output routing, explicitly clear that routing and record/display the guard arguments. Build failure or interruption saves evidence and stops before Trivy; terminal continuation offers an explicit build retry. A successful scan saves sanitized JSON as `report.json` inside the timestamped session folder; malformed/truncated evidence must not leave a stale JSON report.
 
 ## Discover flags, rather than freezing a version
 
@@ -104,7 +106,7 @@ Nilai --scanners (boleh memilih beberapa, misalnya 2,4):
 
 The exact list is dynamic. For example, Trivy 0.76 also offers `crypto` for image scans, while its filesystem scanner list does not. Do not assume every version/method has that option.
 
-After one or more flags have values, option 1 changes to `Selesai — gunakan pilihan saat ini`. Enter here preserves selections. Provide an explicit `Reset ke default tanpa flag` action separately. Reject conflicting flag values and ask the smallest clarification needed. If `--input` is selected for image mode, collect an existing archive path and omit a conflicting positional image reference.
+After one or more flags have values, option 1 changes to `Selesai — gunakan pilihan saat ini`. Enter here preserves selections. Provide an explicit `Reset ke default tanpa flag` action separately. Reject conflicting flag values and ask the smallest clarification needed. Only legacy image sessions may select `--input`; collect an existing archive path and omit a conflicting positional image reference.
 
 ## Severity question
 
@@ -119,11 +121,11 @@ Kategori severity yang ingin ditampilkan:
 
 All uses no added severity argument and normally includes UNKNOWN. Selecting HIGH emits `--severity HIGH`, not `HIGH,CRITICAL`. Explicitly requested multi-category customization can use a supported comma-separated set. Check inherited configuration before claiming the actual coverage includes all categories.
 
-Display the resulting command and run it after the answer, without another routine scan confirmation. Preserve argument boundaries with an argv API; do not evaluate user strings as shell fragments. `--format`, `--output`, filters, and other options must be user choices, not hidden implementation conveniences, apart from the managed-state exclusion below. Record inherited configuration evidence and obtain a focused terminal choice if it restricts the requested coverage; a user's acceptance of inherited settings does not make that coverage unrestricted.
+Display the resulting build/scan commands and run after the answer, without another routine confirmation. Preserve argument boundaries with an argv API; do not evaluate strings as shell fragments. Local-image Docker source and JSON routing are the fixed choices described above; filesystem/legacy output formats, filters, and other options remain user choices, apart from managed-state exclusions below. Record inherited configuration evidence and obtain a focused terminal choice if it restricts requested coverage; accepting inherited settings does not make coverage unrestricted.
 
-Project-local storage must not become a scan input. For `fs`, the CLI displays one `--skip-dirs` argument per marker-owned managed hash partition inside the target and records the relative paths in `scan.managed_state_exclusions`. It excludes those partitions, never the entire custom storage root. Keep explicit user skip lists; otherwise preserve nonempty `TRIVY_SKIP_DIRS` in the effective arguments. If an active YAML config's skip list is unparsed and no explicit/environment list was supplied, return to flag customization or cancel instead of overriding unknown exclusions. This is the only automatic scan-filter exception; it does not change scanner or severity choices. Report the excluded partitions as actual coverage and keep the saved exclusions in verification scans. If the installed command cannot safely support them, stop before scanning state. Each partition's `.gitignore` keeps generated files out of Git without editing root ignore files; already tracked state is refused for explicit resolution.
+Project-local storage must not become a filesystem scan input. The CLI displays one `--skip-dirs` argument per marker-owned session/lock folder or legacy partition inside the target and records those paths in `scan.managed_state_exclusions`. It never excludes the entire custom root. Keep explicit skip lists; otherwise preserve nonempty `TRIVY_SKIP_DIRS` in the effective arguments. If YAML skip lists are unparsed and no explicit/environment list was supplied, return to customization or cancel rather than overriding unknown exclusions. This is the only automatic scan-filter exception; scanner/severity choices stay intact. Report exclusions as actual coverage and retain them during verification. Each managed folder's `.gitignore` keeps generated files out of Git without editing root ignores; already tracked state is refused. For Docker builds, `.gitignore` does not control context contents; the project should exclude `.trivy-porter/` through its `.dockerignore` when relevant, without the CLI editing it automatically.
 
-The CLI deliberately does not parse arbitrary YAML configuration. If an active config file leaves the output format uncertain, it withholds non-JSON text from saved artifacts. The inherited-settings menu offers a return to flag customization so the user can explicitly select `--format table` or `--format json`. The CLI does not add either flag automatically. Other custom formats are also withheld, with a notice before execution.
+The CLI deliberately does not parse arbitrary YAML configuration. For filesystem/legacy scans, an active config with uncertain output format causes non-JSON text to be withheld; the inherited-settings menu offers a return to customization to choose `--format table` or `--format json`. The local-image workflow explicitly selects JSON and guards output routing. Other custom formats remain withheld, with a notice before execution.
 
 ## Batch-size question
 
@@ -146,6 +148,8 @@ The count bounds intentionally selected findings, not commands or files. One rel
 Use these as technical sources and follow the installed version's help when differences exist:
 
 - [Trivy configuration and precedence](https://trivy.dev/docs/latest/configuration/)
+- [Docker build platform and tag options](https://docs.docker.com/reference/cli/docker/buildx/build/)
+- [Trivy container image sources](https://trivy.dev/docs/latest/target/container_image/)
 - [Filesystem CLI, version 0.76](https://trivy.dev/docs/v0.76/guide/references/configuration/cli/trivy_filesystem/)
 - [Image CLI, version 0.76](https://trivy.dev/docs/v0.76/guide/references/configuration/cli/trivy_image/)
 - [Finding filters and severities](https://trivy.dev/docs/latest/configuration/filtering/)

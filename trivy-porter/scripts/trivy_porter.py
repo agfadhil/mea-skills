@@ -35,9 +35,10 @@ FLAG_LINE = re.compile(r"^\s+(?:-\w,\s+)?--([\w-]+)(?:\s+(\w+))?\s{2,}(.*)$")
 VALUE_TYPES = {"string", "strings", "stringArray", "int", "ints", "uint", "float", "float64", "duration"}
 NO_SCAN_FLAGS = {"help", "version", "download-db-only", "download-java-db-only", "generate-default-config", "reset", "clear-cache"}
 CREDENTIAL_FLAGS = {"password", "password-stdin", "registry-token", "token", "custom-headers", "username"}
+LOCAL_IMAGE_FLAGS = {"image-src", "format", "input", "output", "template"}
 COVERAGE_ENV = {"TRIVY_SEVERITY", "TRIVY_SCANNERS", "TRIVY_PKG_TYPES", "TRIVY_IGNORE_UNFIXED",
                 "TRIVY_SKIP_DIRS", "TRIVY_SKIP_FILES", "TRIVY_IGNORE_STATUS", "TRIVY_TABLE_MODE",
-                "TRIVY_FORMAT", "TRIVY_OUTPUT", "TRIVY_CONFIG", "TRIVY_IGNOREFILE"}
+                "TRIVY_FORMAT", "TRIVY_OUTPUT", "TRIVY_INPUT", "TRIVY_IMAGE_SRC", "TRIVY_CONFIG", "TRIVY_IGNOREFILE"}
 SENSITIVE_NAME = re.compile(r"password|token|secret|credential|authorization|api[_-]?key|private[_-]?key", re.I)
 SECRET_ASSIGNMENT = re.compile(
     r'''(?i)(password|token|secret|authorization|api[_-]?key|private[_-]?key)\s*[=:]\s*(?:"(?:[^"\\]|\\.)*(?:"|$)|'(?:[^'\\]|\\.)*(?:'|$)|\S+)'''
@@ -148,19 +149,31 @@ def command_display(argv):
 
 
 class Session:
-    def __init__(self, project, session_id=None, new=False, state_dir=None):
+    def __init__(self, project, session_id=None, new=False, state_dir=None, method=None):
         self.root, self.base, self.directory = store.project_context(project, state_dir)
         ensure_untracked_storage(self.directory)
+        if self.base.is_dir():
+            for folder in store.managed_partitions(self.base, self.directory):
+                ensure_untracked_storage(folder)
         if new:
+            scan = {"method": method, "target": "." if method == "fs" else None,
+                    "cwd": self.root, "severity": "ALL", "explicit_flags": [],
+                    "argv_redacted": [], "last_scan_complete": False}
+            if method == "image":
+                configure_local_image(scan, self.root)
             self.data = store.create_data({
-                "origin": "terminal", "stage": "configuring", "pending_question": "method",
-                "scan": {"method": None, "target": None, "cwd": self.root, "severity": "ALL",
-                         "explicit_flags": [], "argv_redacted": [], "last_scan_complete": False},
+                "origin": "terminal", "stage": "configuring", "pending_question": "flags" if method else "method",
+                "scan": scan,
                 "baseline": {}, "findings": [], "batches": [], "batch_request": None,
                 "last_report": None,
             }, self.root, self.base, self.directory)
         else:
             self.data = store.read(SimpleNamespace(session=session_id), self.root, self.directory)
+        ensure_untracked_storage(self.artifact_directory)
+
+    @property
+    def artifact_directory(self):
+        return store.session_directory(self.data, self.base, self.directory)
 
     def save(self):
         self.data = store.save_data(self.data, self.data["session_id"], self.root, self.base, self.directory)
@@ -172,7 +185,7 @@ class Session:
             action, self.data["session_id"], "--project", self.root, "--state-dir", str(self.base),
         ])
         print(terminal_output.render_handoff(
-            self.data, self.root, self.base, command,
+            self.data, self.root, self.artifact_directory, command,
             columns=shutil.get_terminal_size(fallback=(80, 24)).columns,
             is_tty=sys.stdout.isatty(), environment=os.environ,
         ), end="", flush=True)
@@ -191,7 +204,7 @@ def select_session(project, session_id, state_dir=None):
         raise CliError("Belum ada sesi untuk folder ini. Jalankan trivy-porter untuk scan baru.")
     if len(sessions) == 1:
         return Session(root, sessions[0]["session_id"], state_dir=str(base))
-    options = [(str(index), f"{data['session_id']} — {data['stage']} — {data['updated_at']}")
+    options = [(str(index), f"{store.session_directory(data, base, directory).name} — {data['stage']} — {data['session_id']}")
                for index, data in enumerate(sessions, 1)]
     selected = choice("Pilih sesi yang ingin dilanjutkan:", options)
     return Session(root, sessions[int(selected) - 1]["session_id"], state_dir=str(base))
@@ -224,16 +237,18 @@ def manage_storage(args):
     root, base, directory = store.project_context(args.project, args.state_dir)
     print(f"Project: {root}")
     print(f"Root penyimpanan: {base}")
-    print(f"Folder sesi project: {directory}")
+    sessions = store.load_sessions(directory, root)
+    print("Format folder sesi: YYYYMMDD-HHMM-action")
     if args.action == "storage":
-        print("Status: " + ("sudah ada" if directory.is_dir() else "belum dibuat"))
+        print("Status: " + ("sudah ada" if sessions else "belum dibuat"))
+        for data in sessions:
+            print(f"- {store.session_directory(data, base, directory)}")
         return 0
     if args.action == "sessions":
-        sessions = store.load_sessions(directory, root)
         if not sessions:
             print("Belum ada sesi tersimpan untuk project ini pada lokasi tersebut.")
         for data in sessions:
-            print(f"{data['session_id']}  {data['stage']}  diperbarui {data['updated_at']}")
+            print(f"{store.session_directory(data, base, directory).name}  {data['session_id']}  {data['stage']}  diperbarui {data['updated_at']}")
         return 0
     if not args.session and not args.all_sessions:
         raise CliError("Pilih sesi dengan clean --session ID, atau seluruh sesi project ini dengan clean --all.")
@@ -243,7 +258,7 @@ def manage_storage(args):
         return 0
     print(f"\nAkan menghapus {len(plan['sessions'])} sesi dan {len(plan['files'])} file tersimpan:")
     for item in plan["files"]:
-        print(f"- {directory / item['name']}")
+        print(f"- {Path(plan['directory']) / item['name']}")
     print("Riwayat sesi yang dihapus tidak dapat dilanjutkan. File aplikasi dan output Trivy pilihan pengguna tidak termasuk.")
     while True:
         answer = ask("Hapus file di atas? [y/N]: ").lower()
@@ -266,6 +281,25 @@ def set_flag(scan, name, value):
 
 def flag_value(scan, name, fallback=None):
     return next((item["value"] for item in scan["explicit_flags"] if item["name"] == name), fallback)
+
+
+def choose_method():
+    answer = choice("Metode scan yang ingin digunakan?", [
+        ("1", "fs — folder kerja saat ini (default)"),
+        ("2", "image — build Docker lokal lalu scan"),
+    ])
+    return "fs" if answer == "1" else "image"
+
+
+def configure_local_image(scan, project):
+    name = re.sub(r"[^a-z0-9._-]+", "-", Path(project).name.lower()).strip("._-")
+    name = re.sub(r"[._-]+", lambda match: match[0] if re.fullmatch(r"\.|__?|-+", match[0]) else "-", name)
+    name = name[:200].rstrip("._-") or "project"
+    tag = name + ":scan"
+    scan.update(target=tag, target_kind="local_build")
+    scan["build"] = {"context": project, "platform": "linux/amd64", "tag": tag,
+                     "argv_redacted": ["docker", "build", "--platform=linux/amd64", "-t", tag, "."],
+                     "status": "pending"}
 
 
 def collect_target(session, archive=False):
@@ -343,16 +377,25 @@ def collect_value(spec):
 def configure(session, trivy):
     data = session.data
     if data["pending_question"] == "method":
-        method = choice("Metode scan yang ingin digunakan?", [("1", "fs — folder kerja saat ini (default)"), ("2", "image — container image")])
-        data["scan"]["method"] = "fs" if method == "1" else "image"
-        data["scan"]["target"] = "." if method == "1" else None
-        data["pending_question"] = "flags" if method == "1" else "target_kind"
+        method = choose_method()
+        data["scan"]["method"] = method
+        data["scan"]["target"] = "." if method == "fs" else None
+        if method == "image":
+            configure_local_image(data["scan"], session.root)
+        data["pending_question"] = "flags"
         session.save()
     scan = session.data["scan"]
     method = scan["method"]
     version = probe([trivy, "--version"], session.root)
     flags = discover_flags(probe([trivy, method, "--help"], session.root))
     scan["trivy_version"] = scrub(version)
+    local_image = scan.get("target_kind") == "local_build"
+    if local_image:
+        if not {"image-src", "format"}.issubset(flags):
+            raise CliError("Trivy ini harus mendukung --image-src dan --format untuk scan Docker lokal dalam JSON.")
+        print(f"\nImage lokal: {scan['target']} · platform linux/amd64 · report JSON")
+        if any(item["name"] in LOCAL_IMAGE_FLAGS for item in scan["explicit_flags"]):
+            raise CliError("Sumber Docker lokal dan format JSON tidak dapat ditimpa oleh flags sesi.")
     for item in scan["explicit_flags"]:
         if item["name"] not in flags:
             raise CliError(f"--{item['name']} tidak tersedia pada Trivy saat ini; konfigurasi sesi perlu diperiksa.")
@@ -366,7 +409,8 @@ def configure(session, trivy):
         collect_target(session, session.data["pending_question"] == "archive")
         session.data["pending_question"] = "flags"
         session.save()
-    names = sorted(name for name in flags if name not in {"severity", "scanners"})
+    reserved = LOCAL_IMAGE_FLAGS if local_image else set()
+    names = sorted(name for name in flags if name not in {"severity", "scanners"} | reserved)
     if "scanners" in flags:
         names.insert(0, "scanners")
     page = 0
@@ -402,6 +446,9 @@ def configure(session, trivy):
                 name = names[int(answer) - 2]
             if name not in flags or name == "severity":
                 print("Flag tidak tersedia untuk metode ini; severity ditanyakan terpisah.")
+                continue
+            if name in reserved:
+                print("Alur image lokal menggunakan sumber Docker dan report JSON; flag ini dikelola otomatis.")
                 continue
             if name in NO_SCAN_FLAGS:
                 print("Flag ini tidak menghasilkan findings scan. Pilih flag scan lain.")
@@ -440,6 +487,9 @@ def configure(session, trivy):
 
 def scan_argv(scan):
     argv = ["trivy", scan["method"]]
+    if scan.get("target_kind") == "local_build":
+        argv.extend(["--image-src", "docker", "--format", "json"])
+        argv.extend(scan.get("routing_guards", []))
     if scan.get("target_kind") == "archive":
         argv.extend(["--input", scan["target"]])
     for item in scan["explicit_flags"]:
@@ -507,7 +557,10 @@ def baseline(project, settings):
 
 def sanitize_json(raw):
     """Whitelist report fields: never carry image environment, matches or code snippets."""
-    data = json.loads(raw)
+    def reject_constant(value):
+        raise ValueError("Non-JSON numeric constant: " + value)
+
+    data = json.loads(raw, parse_constant=reject_constant)
     if not isinstance(data, dict) or not isinstance(data.get("Results"), list):
         raise ValueError("Not a Trivy findings report")
     result = {key: data[key] for key in ("SchemaVersion", "ArtifactName", "ArtifactType") if key in data}
@@ -543,7 +596,7 @@ def sanitize_json(raw):
             return {key: scrub_fields(item) for key, item in value.items()}
         return value
 
-    return json.dumps(scrub_fields(result), ensure_ascii=False, indent=2) + "\n"
+    return json.dumps(scrub_fields(result), ensure_ascii=False, indent=2, allow_nan=False) + "\n"
 
 
 def sanitize_table(raw):
@@ -649,6 +702,8 @@ def write_artifact(path, text):
 
 
 def output_file(scan, project):
+    if scan.get("target_kind") == "local_build":
+        return None
     value = flag_value(scan, "output", os.environ.get("TRIVY_OUTPUT"))
     if not value or "://" in value:
         return None
@@ -664,6 +719,8 @@ def output_identity(path):
 
 
 def report_format(scan, settings):
+    if scan.get("target_kind") == "local_build":
+        return "json"
     selected = flag_value(scan, "format", os.environ.get("TRIVY_FORMAT"))
     if selected:
         return selected
@@ -689,9 +746,90 @@ def state_exclusions(session):
     return paths
 
 
+def run_local_build(session):
+    """Build the selected local source; a failed build never scans an old tag."""
+    scan = session.data["scan"]
+    if scan.get("target_kind") != "local_build":
+        return None
+    build = scan["build"]
+    docker = shutil.which("docker")
+    report_path = session.artifact_directory / "report.json"
+    if report_path.is_symlink() or (report_path.exists() and not report_path.is_file()):
+        raise CliError("Report sesi harus berupa file biasa sebelum mengulang build.")
+    report_path.unlink(missing_ok=True)
+    scan.pop("result", None)
+    scan.pop("last_scan_exit_code", None)
+    scan.pop("last_scan_at", None)
+    scan.pop("image_identity", None)
+    scan["argv_redacted"] = []
+    scan["last_scan_complete"] = None
+    build.pop("result", None)
+    build.pop("image_id", None)
+    build.pop("identity_error", None)
+    build.update(status="running", started_at=store.timestamp())
+    session.data["pending_question"] = "build_running"
+    session.save()
+    build = session.data["scan"]["build"]
+    if docker is None:
+        build.update(status="failed", error="Docker belum tersedia di PATH. Pasang Docker dan aktifkan daemon sebelum mengulang build.")
+        session.data["stage"] = "scan_failed"
+        session.data["pending_question"] = "build"
+        session.save()
+        print("\n" + build["error"], flush=True)
+        print(f"Ulangi dari terminal: {session.terminal_command()}")
+        return 2
+    print(f"\nMembangun image lokal: {command_display(build['argv_redacted'])}", flush=True)
+    print("Menunggu Docker build; diagnostic yang disanitasi disimpan setelah proses berakhir.", flush=True)
+    argv = [docker, *build["argv_redacted"][1:]]
+    try:
+        raw, exit_code, interrupted, truncated = capture_process(argv, session.root)
+    except OSError as exc:
+        raw, exit_code, interrupted, truncated = ["", "ERROR " + scrub(str(exc))], 2, False, [False, False]
+    directory = session.artifact_directory
+    stdout_path, stderr_path = directory / "build.stdout.txt", directory / "build.stderr.txt"
+    # Docker progress can contain arbitrary Dockerfile/source output. Preserve
+    # diagnostic prefixes only, using the same guarded capture as Trivy stderr.
+    write_artifact(stdout_path, sanitize_stderr(raw[0]))
+    write_artifact(stderr_path, sanitize_stderr(raw[1]))
+    build = session.data["scan"]["build"]
+    build["result"] = {"exit_code": exit_code, "interrupted": interrupted, "truncated": any(truncated),
+                       "stdout_path": str(stdout_path), "stderr_path": str(stderr_path), "sanitized": True}
+    build["finished_at"] = store.timestamp()
+    if interrupted or exit_code != 0:
+        build["status"] = "interrupted" if interrupted else "failed"
+        session.data["stage"] = "scan_failed"
+        session.data["pending_question"] = "build"
+        session.save()
+        print(f"\nDocker build {'terinterupsi' if interrupted else 'gagal'} (exit {exit_code}); Trivy belum dijalankan.", flush=True)
+        print(sanitize_stderr(raw[1]), end="")
+        print(f"Ulangi dari terminal: {session.terminal_command()}")
+        return 130 if interrupted else exit_code if exit_code > 0 else 1
+    build["status"] = "succeeded"
+    try:
+        identity = probe([docker, "image", "inspect", "--format", "{{.Id}}", build["tag"]], session.root).strip()
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", identity):
+            build["image_id"] = identity
+    except CliError as exc:
+        build["identity_error"] = scrub(str(exc))
+    session.data["pending_question"] = "scan"
+    session.save()
+    print("✓ Docker build berhasil; melanjutkan scan image lokal.", flush=True)
+    return None
+
+
 def run_scan(session, trivy, supported_flags=None):
     settings = inherited_settings(session)
     scan = session.data["scan"]
+    local_image = scan.get("target_kind") == "local_build"
+    if local_image:
+        guards = []
+        if settings["config_file"] or os.environ.get("TRIVY_INPUT"):
+            guards.append("--input=")
+        if settings["config_file"] or os.environ.get("TRIVY_OUTPUT"):
+            guards.append("--output=")
+        scan["routing_guards"] = guards
+        if guards:
+            print("\nRouting image/report dikelola alur lokal: " + " ".join(guards) + "; sumber tetap Docker dan JSON ditangkap dari stdout.")
     exclusions = state_exclusions(session)
     scan["managed_state_exclusions"] = exclusions
     scan["inherited_skip_dirs"] = None
@@ -733,6 +871,10 @@ def run_scan(session, trivy, supported_flags=None):
     scan["inherited_settings"] = settings
     scan["credential_sources"] = [name for name in settings["environment_names"] if SENSITIVE_NAME.search(name)]
     scan["configuration_fingerprint"] = settings["files"]
+    build_result = run_local_build(session)
+    if build_result is not None:
+        return build_result
+    scan = session.data["scan"]
     scan["argv_redacted"] = scan_argv(scan)
     scan["last_scan_at"] = store.timestamp()
     scan["last_scan_complete"] = None
@@ -758,24 +900,38 @@ def run_scan(session, trivy, supported_flags=None):
         else:
             raw[0] = ""
             source = "output artifact absent or unchanged; requires review"
-    stdout = sanitized_report(raw[0], output_format, truncated[0])
+    valid_json = False
+    if local_image and not truncated[0]:
+        try:
+            stdout = sanitize_json(raw[0])
+            valid_json = True
+        except (ValueError, TypeError):
+            stdout = "[Docker image scan tidak menghasilkan JSON Trivy yang dapat dibaca; perlu periksa diagnostic.]\n"
+    else:
+        stdout = sanitized_report(raw[0], output_format, truncated[0])
     stderr = sanitize_stderr(raw[1])
     run_id = uuid.uuid4().hex
     prefix = f"{session.data['session_id']}.{run_id}"
-    stdout_path = session.directory / f"{prefix}.stdout.txt"
-    stderr_path = session.directory / f"{prefix}.stderr.txt"
+    directory = session.artifact_directory
+    stdout_path = directory / ("report.json" if valid_json else "scan.stdout.txt" if local_image else f"{prefix}.stdout.txt")
+    stderr_path = directory / ("scan.stderr.txt" if local_image else f"{prefix}.stderr.txt")
+    if local_image and not valid_json:
+        (directory / "report.json").unlink(missing_ok=True)
     write_artifact(stdout_path, stdout)
     write_artifact(stderr_path, stderr)
     scan["last_scan_exit_code"] = exit_code
     scan["result"] = {"stdout_path": str(stdout_path), "stderr_path": str(stderr_path),
                       "exit_code": exit_code, "interrupted": interrupted, "truncated": any(truncated),
                       "format": output_format, "source": source, "sanitized": True, "run_id": run_id}
-    session.data["stage"] = "awaiting_analysis"
-    session.data["pending_question"] = None
+    session.data["stage"] = "scan_failed" if local_image and not valid_json else "awaiting_analysis"
+    session.data["pending_question"] = "scan" if local_image and not valid_json else None
     session.save()
     print("\n" + stdout)
     if raw[1]:
         print(stderr)
+    if local_image and not valid_json:
+        print(f"Ulangi dari terminal: {session.terminal_command()}")
+        return 130 if interrupted else exit_code if exit_code > 0 else 2
     session.handoff()
     return 130 if interrupted else exit_code if exit_code >= 0 else 1
 
@@ -892,8 +1048,8 @@ def main(argv=None):
         if not trivy:
             raise CliError("Trivy belum tersedia di PATH. Pasang Trivy terlebih dahulu; CLI tidak memasangnya otomatis.")
         if session is None:
-            session = Session(args.project, new=True, state_dir=args.state_dir)
-        if session.data["stage"] == "scan_failed" or session.data.get("pending_question") == "scan_running":
+            session = Session(args.project, new=True, state_dir=args.state_dir, method=choose_method())
+        if session.data["stage"] == "scan_failed" or session.data.get("pending_question") in {"scan_running", "build_running"}:
             choice("Scan sebelumnya gagal/tidak diketahui hasilnya. Jalankan ulang dengan pilihan tersimpan?",
                    [("1", "Jalankan ulang (default)"), ("0", "Batal")])
             session.data["stage"] = "configuring"

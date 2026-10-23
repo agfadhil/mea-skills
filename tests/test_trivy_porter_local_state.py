@@ -1,6 +1,5 @@
 """Keep project-local session storage out of Git and Trivy's own scan inputs."""
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -38,10 +37,15 @@ class LocalStateIntegrationTests(unittest.TestCase):
 
     def directory(self, project=None, state=None):
         root = str((project or self.project).resolve())
-        return (state or self.state) / hashlib.sha256(root.encode("utf-8")).hexdigest()
+        paths = list((state or self.state).glob("*/session.json"))
+        matches = [path.parent for path in paths
+                   if json.loads(path.read_text(encoding="utf-8")).get("project_root") == root]
+        return max(matches, key=lambda path: path.name) if matches else (state or self.state)
 
     def only_session(self, project=None, state=None):
-        files = list(self.directory(project, state).glob("*.json"))
+        root = str((project or self.project).resolve())
+        files = [path for path in (state or self.state).glob("*/session.json")
+                 if json.loads(path.read_text(encoding="utf-8")).get("project_root") == root]
         self.assertEqual(len(files), 1)
         return json.loads(files[0].read_text(encoding="utf-8"))
 
@@ -68,7 +72,6 @@ class LocalStateIntegrationTests(unittest.TestCase):
         result = self.run_cli("", "storage", cwd=launcher)
         expected = launcher / ".trivy-porter"
         self.assertIn(str(expected.resolve()), result.stdout)
-        self.assertIn(str(self.directory(state=expected).resolve()), result.stdout)
         self.assertFalse(expected.exists())
         self.assertFalse((self.root / "old xdg location").exists())
         self.assertFalse(self.state.exists())
@@ -229,7 +232,7 @@ class LocalStateIntegrationTests(unittest.TestCase):
                        check=True, capture_output=True, text=True, timeout=10)
         self.run_cli("\n\n\n")
         session = self.only_session()
-        stored = self.directory() / (session["session_id"] + ".json")
+        stored = self.directory() / "session.json"
         original = stored.read_bytes()
         subprocess.run(["git", "add", "-f", str(stored)], env=self.env, cwd=self.project,
                        check=True, capture_output=True, text=True, timeout=10)

@@ -79,12 +79,20 @@ def clean_local_store():
     renamed = None
     with ExitStack() as locks:
         partitions = [path for path in target.iterdir()
-                      if store.PARTITION_ID.fullmatch(path.name) and not is_link(path) and path.is_dir()]
-        for partition in sorted(partitions):
-            locks.enter_context(hold_existing_lock(partition / ".lock"))
+                      if (store.PARTITION_ID.fullmatch(path.name) or store.RUN_DIRECTORY.fullmatch(path.name))
+                      and not is_link(path) and path.is_dir()]
+        lock_paths = [partition / ".lock" for partition in partitions]
+        locks_directory = target / ".locks"
+        if locks_directory.exists():
+            if is_link(locks_directory) or not locks_directory.is_dir():
+                raise store.StoreError("Local cleanup refuses a non-regular lock directory.")
+            lock_paths.extend(locks_directory.glob("*.lock"))
+        for path in sorted(lock_paths):
+            locks.enter_context(hold_existing_lock(path))
         for partition in partitions:
-            for path in partition.glob("*.json"):
-                if not store.SESSION_ID.fullmatch(path.stem) or is_link(path) or not path.is_file():
+            metadata = [partition / "session.json"] if store.RUN_DIRECTORY.fullmatch(partition.name) else list(partition.glob("*.json"))
+            for path in metadata:
+                if (path.name != "session.json" and not store.SESSION_ID.fullmatch(path.stem)) or not path.exists() or is_link(path) or not path.is_file():
                     continue
                 if path.stat().st_size > LIMIT:
                     raise store.StoreError("A session is too large to check for active work; inspect it before --clean.")
@@ -92,8 +100,8 @@ def clean_local_store():
                     data = store.read_json(path)
                 except store.StoreError:
                     continue  # Explicit full cleanup can also remove damaged/unknown state.
-                if data["stage"] == "batch_in_progress" or data.get("pending_question") == "scan_running":
-                    raise store.StoreError("A local scan/batch is active. Finish or recover it before --clean.")
+                if data["stage"] == "batch_in_progress" or data.get("pending_question") in {"scan_running", "build_running"}:
+                    raise store.StoreError("A local scan/build/batch is active. Finish or recover it before --clean.")
         for folder, directories, _files in os.walk(target, followlinks=False):
             for name in list(directories):
                 child = Path(folder) / name
@@ -160,7 +168,9 @@ def read_artifact(raw_path, directory, session_id, stream):
         raise store.StoreError(f"The saved scan has no {stream} artifact. No report was exported.")
     path = Path(raw_path)
     allowed = re.compile(rf"{session_id}(?:\.[0-9a-f]{{32}})?\.{stream}\.txt\Z")
-    if not path.is_absolute() or path.parent != directory or not allowed.fullmatch(path.name):
+    readable = {"stdout": {"report.json", "scan.stdout.txt"}, "stderr": {"scan.stderr.txt"}}
+    valid_name = allowed.fullmatch(path.name) or (store.RUN_DIRECTORY.fullmatch(directory.name) and path.name in readable[stream])
+    if not path.is_absolute() or path.parent != directory or not valid_name:
         raise store.StoreError("Export refuses an artifact outside the selected session partition.")
     if not path.exists() or is_link(path) or not path.is_file():
         raise store.StoreError("A saved scan artifact is missing or not a regular file. No report was exported.")
@@ -173,7 +183,7 @@ def read_artifact(raw_path, directory, session_id, stream):
 
 
 def download_report(project, state_dir, session_id, download_dir, scrub, sanitize_report, sanitize_stderr):
-    root, _base, directory = store.project_context(project, state_dir)
+    root, base, directory = store.project_context(project, state_dir)
     if directory.exists() and is_link(directory):
         raise store.StoreError("Export refuses a symlink/junction session partition.")
     sessions = store.load_sessions(directory, root)
@@ -189,8 +199,9 @@ def download_report(project, state_dir, session_id, download_dir, scrub, sanitiz
     result = data["scan"].get("result") if isinstance(data.get("scan"), dict) else None
     if not isinstance(result, dict) or not result:
         raise store.StoreError("This session has no saved scan output yet.")
-    stdout, stdout_truncated = read_artifact(result.get("stdout_path"), directory, data["session_id"], "stdout")
-    stderr, stderr_truncated = read_artifact(result.get("stderr_path"), directory, data["session_id"], "stderr")
+    artifact_directory = store.session_directory(data, base, directory)
+    stdout, stdout_truncated = read_artifact(result.get("stdout_path"), artifact_directory, data["session_id"], "stdout")
+    stderr, stderr_truncated = read_artifact(result.get("stderr_path"), artifact_directory, data["session_id"], "stderr")
     fields = {"schema_version", "project_root", "session_id", "revision", "created_at", "updated_at", "origin",
               "stage", "pending_question", "scan", "baseline", "findings", "batches", "batch_request", "last_report"}
     snapshot = {key: value for key, value in data.items() if key in fields}
@@ -207,7 +218,7 @@ def download_report(project, state_dir, session_id, download_dir, scrub, sanitiz
                   "An uploaded report does not prove the current project is unchanged or that any finding has been fixed."],
     }
     destination = (Path(download_dir).expanduser() if download_dir is not None else Path.home() / "Downloads").resolve()
-    if inside(destination, directory) or inside(destination, Path.cwd().resolve() / ".trivy-porter"):
+    if inside(destination, artifact_directory) or inside(destination, Path.cwd().resolve() / ".trivy-porter"):
         raise store.StoreError("Choose a download directory outside .trivy-porter so --clean preserves the exported report.")
     destination.mkdir(mode=0o700, parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")

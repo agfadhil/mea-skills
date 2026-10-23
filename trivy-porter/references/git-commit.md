@@ -6,7 +6,7 @@ After every remediation batch, complete verification, stage all repository chang
 
 Resolve the repository root with `git rev-parse --show-toplevel`. Inspect `git status --short` and the current staged scope, noting pre-existing and earlier-batch changes. Record the Git step as pending before mutating the index.
 
-For project-local session storage, check that the active partition and any other managed partitions under the selected storage root within this repository are ignored and have no tracked files before staging. Each partition's managed `.gitignore` should keep generated state out of `git add -A`; an ignore rule cannot protect files already tracked. If state files are tracked or an ignore rule is missing/changed, record Git preparation as blocked and explain it. Do not force-add, automatically untrack, or unstage those files. This does not narrow staging of application changes.
+For project-local session storage, check that the active session folder, hidden `.locks`, and other managed session folders or legacy partitions within this repository are ignored and have no tracked files before staging. Each managed folder's `.gitignore` should keep generated state out of `git add -A`; an ignore rule cannot protect files already tracked. If state files are tracked or an ignore rule is missing/changed, record Git preparation as blocked and explain it. Do not force-add, automatically untrack, or unstage those files. This does not narrow staging of application changes.
 
 Run from the repository root, with the root passed as a literal argument:
 

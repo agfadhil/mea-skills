@@ -1,6 +1,5 @@
 """Exercise the terminal/chat handoff without scanning a real project."""
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -34,6 +33,7 @@ Scan Flags:
       --format string            format (allowed values: table,json,template,sarif) (default "table")
       --output string            output path
       --input string             input archive
+      --image-src strings        image sources (allowed values: docker,containerd,podman,remote)
       --token string             authentication token
       --password strings         registry password
       --username strings         registry username
@@ -90,16 +90,20 @@ class TerminalIntegrationTests(unittest.TestCase):
                 args = sys.argv[1:]
                 with Path(os.environ['FAKE_TRIVY_CALLS']).open('a', encoding='utf-8') as out:
                     out.write(json.dumps({'args': args, 'cwd': os.getcwd()}) + '\\n')
+                if os.environ.get('FAKE_WORKFLOW_EVENTS'):
+                    with Path(os.environ['FAKE_WORKFLOW_EVENTS']).open('a', encoding='utf-8') as out:
+                        out.write(json.dumps({'tool': 'trivy', 'args': args, 'cwd': os.getcwd()}) + '\\n')
                 if args == ['--version']:
                     print('Version: 0.76.1')
                 elif '--help' in args:
                     help_text = Path(os.environ['FAKE_TRIVY_HELP']).read_text(encoding='utf-8').replace('{method}', args[0])
                     if args[0] == 'fs':
-                        help_text = '\\n'.join(line for line in help_text.splitlines() if '--input ' not in line)
+                        help_text = '\\n'.join(line for line in help_text.splitlines()
+                                              if '--input ' not in line and '--image-src ' not in line)
                     print(help_text)
                 else:
                     report = Path(os.environ['FAKE_TRIVY_STDOUT']).read_text(encoding='utf-8')
-                    destination = None
+                    destination = os.environ.get('TRIVY_OUTPUT')
                     for index, arg in enumerate(args):
                         if arg == '--output' and index + 1 < len(args):
                             destination = args[index + 1]
@@ -151,8 +155,10 @@ class TerminalIntegrationTests(unittest.TestCase):
 
     def sessions(self, project=None):
         project = str((project or self.project).resolve())
-        directory = self.state / hashlib.sha256(project.encode("utf-8")).hexdigest()
-        return [json.loads(file.read_text(encoding="utf-8")) for file in sorted(directory.glob("*.json"))]
+        paths = sorted(set(self.state.glob("*/*.json")))
+        records = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
+        return [record for record in records if record.get("project_root") == project
+                and "session_id" in record]
 
     def only_session(self):
         sessions = self.sessions()
@@ -246,17 +252,26 @@ class TerminalIntegrationTests(unittest.TestCase):
         self.run_cli("\n\n3\n")
         self.assertEqual(self.calls(scans_only=True)[0]["args"], ["fs", "--severity", "HIGH", "."])
 
-    def test_image_reference_metacharacters_are_literal(self):
+    def legacy_image_session(self, target, target_kind="image"):
+        return self.create_session("configuring", pending_question="flags", scan={
+            "method": "image", "target": target, "target_kind": target_kind,
+            "cwd": str(self.project.resolve()), "severity": "ALL", "explicit_flags": [],
+            "last_scan_complete": False,
+        })
+
+    def test_legacy_image_reference_metacharacters_are_literal(self):
         image = "repo/image:tag; touch SHOULD_NOT_EXIST"
-        self.run_cli("2\n\n" + image + "\n\n\n")
+        session = self.legacy_image_session(image)
+        self.run_cli("\n\n", "continue", "--session", session["session_id"])
         args = self.calls(scans_only=True)[0]["args"]
         self.assertEqual(args, ["image", image])
         self.assertFalse((self.project / "SHOULD_NOT_EXIST").exists())
 
-    def test_image_archive_requires_no_dummy_image_reference(self):
+    def test_legacy_image_archive_requires_no_dummy_image_reference(self):
         archive = self.project / "local image.tar"
         archive.write_bytes(b"fake fixture archive")
-        self.run_cli("2\n2\n" + str(archive) + "\n\n\n")
+        session = self.legacy_image_session(str(archive.resolve()), "archive")
+        self.run_cli("\n\n", "continue", "--session", session["session_id"])
         self.assertEqual(self.calls(scans_only=True)[0]["args"], ["image", "--input", str(archive.resolve())])
 
     def test_scanners_menu_keeps_explicit_multiple_choices(self):
@@ -304,10 +319,11 @@ class TerminalIntegrationTests(unittest.TestCase):
         self.run_cli("\n--ignore-unfixed\n2\n--scanners\n1\n\n\n")
         self.assertEqual(self.calls(scans_only=True)[0]["args"], ["fs", "--ignore-unfixed=true", "."])
 
-    def test_reset_custom_flags_preserves_explicit_archive_target(self):
+    def test_reset_custom_flags_preserves_legacy_archive_target(self):
         archive = self.project / "image.tar"
         archive.write_bytes(b"fixture archive")
-        self.run_cli("2\n2\n" + str(archive) + "\n--scanners\n2\nr\n\n\n")
+        session = self.legacy_image_session(str(archive.resolve()), "archive")
+        self.run_cli("--scanners\n2\nr\n\n\n", "continue", "--session", session["session_id"])
         self.assertEqual(self.calls(scans_only=True)[0]["args"], ["image", "--input", str(archive.resolve())])
 
     def test_non_scan_credential_and_other_method_flags_do_not_execute(self):
