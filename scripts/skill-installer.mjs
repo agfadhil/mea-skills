@@ -9,6 +9,7 @@ const pathApi = (platform) => platform === 'win32' ? path.win32 : path.posix;
 export function getDefaultTargets({ platform = process.platform, homeDirectory = homedir() } = {}) {
   const paths = pathApi(platform);
   return [
+    { id: 'claude', label: 'Claude', directory: paths.join(homeDirectory, '.claude', 'skills') },
     { id: 'codex', label: 'Codex', directory: paths.join(homeDirectory, '.codex', 'skills') },
     { id: 'antigravity', label: 'Antigravity', directory: paths.join(homeDirectory, '.gemini', 'config', 'skills') },
   ];

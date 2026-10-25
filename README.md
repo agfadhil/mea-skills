@@ -1,6 +1,6 @@
 # mea-skills
 
-A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, creating unit tests without production changes, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Codex, Antigravity, or both. Supports macOS, Linux, and Windows.
+A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, creating unit tests without production changes, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Claude, Codex, and Antigravity (all three by default, or a single agent). Supports macOS, Linux, and Windows.
 
 ## Getting Started
 
@@ -17,9 +17,10 @@ The installer uses Node.js built-in modules and does not require running `pnpm i
 1. Choose a target:
 
    ```text
-   1. Both — Codex and Antigravity (default)
-   2. Codex
-   3. Antigravity
+   1. All — Claude, Codex, and Antigravity (default)
+   2. Claude
+   3. Codex
+   4. Antigravity
    0. Cancel
    ```
 
@@ -33,10 +34,11 @@ Selecting `0`, rejecting the prompt, or terminating input before confirmation le
 
 | Target | macOS / Linux | Windows |
 | --- | --- | --- |
+| Claude | `~/.claude/skills` | `%USERPROFILE%\.claude\skills` |
 | Codex | `~/.codex/skills` | `%USERPROFILE%\.codex\skills` |
 | Antigravity | `~/.gemini/config/skills` | `%USERPROFILE%\.gemini\config\skills` |
 
-This installer's Codex target uses the skills directory under the default [Codex home](https://learn.chatgpt.com/docs/config-file/environment-variables), `~/.codex`. If you use a custom `CODEX_HOME`, enter its `skills` directory when the installer asks for a custom path. The Antigravity target follows the documented [App/IDE skill location](https://antigravity.google/docs/skills?app=antigravity-ide).
+The Claude target uses the personal skills directory for [Claude Code](https://code.claude.com/docs/en/skills), `~/.claude/skills`. This installer's Codex target uses the skills directory under the default [Codex home](https://learn.chatgpt.com/docs/config-file/environment-variables), `~/.codex`. If you use a custom `CODEX_HOME`, enter its `skills` directory when the installer asks for a custom path. The Antigravity target follows the documented [App/IDE skill location](https://antigravity.google/docs/skills?app=antigravity-ide).
 
 For custom paths, the installer accepts `~/...`, `$HOME/...`, `%USERPROFILE%\...`, as well as quoted paths containing spaces. Custom paths specify the copy destination; the installer does not automatically register arbitrary directories with the agent. Choose a location natively supported by your agent or configure its discovery settings.
 
@@ -239,7 +241,7 @@ The installer only copies skill files. Agent integrations and runtime tools must
 
 ## Troubleshooting Skill Discovery
 
-Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file and that the name in the YAML frontmatter matches the directory name. Codex detects skill changes automatically; restart Codex if new skills do not appear immediately. For Antigravity, start a new agent session after installation. Refer to the [Codex documentation](https://learn.chatgpt.com/docs/build-skills) and [Antigravity documentation](https://antigravity.google/docs/skills?app=antigravity-ide) for local skill discovery details.
+Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file and that the name in the YAML frontmatter matches the directory name. Claude Code picks up skills from `~/.claude/skills`; start a new session if they do not appear. Codex detects skill changes automatically; restart Codex if new skills do not appear immediately. For Antigravity, start a new agent session after installation. Refer to the [Codex documentation](https://learn.chatgpt.com/docs/build-skills) and [Antigravity documentation](https://antigravity.google/docs/skills?app=antigravity-ide) for local skill discovery details.
 
 WSL uses a Linux home directory separate from the Windows user profile. Run the installer inside the environment where the agent operates: running from WSL installs to the WSL home directory, whereas running from native Windows installs to the Windows user profile. For remote or containerized environments, verify the path read by the agent in that container. After installation, start a new agent session if changes are not detected.
 

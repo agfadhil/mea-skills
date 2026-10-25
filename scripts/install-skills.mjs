@@ -30,19 +30,21 @@ export async function runInstaller({
     print(`OS: ${{ win32: 'Windows', darwin: 'macOS', linux: 'Linux' }[platform] || platform}`);
     print();
     print('Pilih tujuan instalasi:');
-    print('1. Codex dan Antigravity (default)');
-    print('2. Codex');
-    print('3. Antigravity');
+    print('1. Claude, Codex, dan Antigravity (default)');
+    print('2. Claude');
+    print('3. Codex');
+    print('4. Antigravity');
     print('0. Batal');
+    const choices = ['0', '1', '2', '3', '4'];
     let choice;
     do {
       choice = (await ask('Pilihan [1]: ')) || '1';
-      if (!['0', '1', '2', '3'].includes(choice)) print('Masukkan 1, 2, 3, atau 0.');
-    } while (!['0', '1', '2', '3'].includes(choice));
+      if (!choices.includes(choice)) print('Masukkan 1, 2, 3, 4, atau 0.');
+    } while (!choices.includes(choice));
     if (choice === '0') throw new Cancelled();
 
     const defaults = getDefaultTargets({ platform, homeDirectory });
-    const selected = choice === '1' ? defaults : defaults.filter((item) => item.id === (choice === '2' ? 'codex' : 'antigravity'));
+    const selected = choice === '1' ? defaults : [defaults[Number(choice) - 2]];
     const targets = [];
     for (const target of selected) {
       print();
@@ -89,7 +91,7 @@ export async function runInstaller({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2).filter((item) => item !== '--');
   if (args.length && args.every((item) => ['--help', '-h'].includes(item))) {
-    console.log('Pemakaian: pnpm run install:skills\nPilih Codex/Antigravity, periksa atau ubah path, lalu konfirmasikan instalasi.');
+    console.log('Pemakaian: pnpm run install:skills\nPilih Claude/Codex/Antigravity, periksa atau ubah path, lalu konfirmasikan instalasi.');
   } else if (args.length) {
     console.error(`Argumen tidak dikenal: ${args.join(' ')}. Gunakan --help untuk bantuan.`);
     process.exitCode = 1;

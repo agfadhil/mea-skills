@@ -40,13 +40,14 @@ async function assertNoInstallerArtifacts(directory) {
   assert.equal(names.some(name => name === '.mea-skills-backups' || name.startsWith('.mea-skills-install-')), false);
 }
 
-test('default targets resolve Codex and Antigravity skill directories across platforms', () => {
+test('default targets resolve Claude, Codex, and Antigravity skill directories across platforms', () => {
   for (const platform of ['darwin', 'linux', 'win32']) {
     const paths = platform === 'win32' ? path.win32 : path.posix;
     const homeDirectory = platform === 'win32' ? 'C:\\Users\\fixture' : '/home/fixture';
     const targets = getDefaultTargets({ platform, homeDirectory });
-    assert.deepEqual(targets.map(target => target.id), ['codex', 'antigravity']);
+    assert.deepEqual(targets.map(target => target.id), ['claude', 'codex', 'antigravity']);
     assert.deepEqual(targets.map(target => target.directory), [
+      paths.join(homeDirectory, '.claude', 'skills'),
       paths.join(homeDirectory, '.codex', 'skills'),
       paths.join(homeDirectory, '.gemini', 'config', 'skills'),
     ]);
@@ -58,7 +59,7 @@ test('install and update replace selected skills without retaining backups or ob
   const source = await skill(setup.repositoryRoot, 'sample', 'first');
   const targets = getDefaultTargets({ platform: 'darwin', homeDirectory: setup.homeDirectory });
   const initial = await createInstallPlan({ repositoryRoot: setup.repositoryRoot, targets });
-  assert.equal((await applyInstallPlan(initial)).installed.length, 2);
+  assert.equal((await applyInstallPlan(initial)).installed.length, 3);
   for (const target of targets) {
     assert.equal(await fs.readFile(path.join(target.directory, 'sample', 'scripts', 'tool.txt'), 'utf8'), 'first');
     await fs.mkdir(path.join(target.directory, 'sample', 'obsolete', 'nested'), { recursive: true });
@@ -67,9 +68,9 @@ test('install and update replace selected skills without retaining backups or ob
   }
   await fs.writeFile(path.join(source, 'scripts', 'tool.txt'), 'second');
   const update = await createInstallPlan({ repositoryRoot: setup.repositoryRoot, targets });
-  assert.deepEqual(update.operations.map(operation => operation.action), ['update', 'update']);
+  assert.deepEqual(update.operations.map(operation => operation.action), ['update', 'update', 'update']);
   const result = await applyInstallPlan(update);
-  assert.equal(result.installed.length, 2);
+  assert.equal(result.installed.length, 3);
   for (const target of targets) {
     assert.equal(await fs.readFile(path.join(target.directory, 'sample', 'scripts', 'tool.txt'), 'utf8'), 'second');
     await assert.rejects(fs.access(path.join(target.directory, 'sample', 'obsolete')), { code: 'ENOENT' });
@@ -77,7 +78,7 @@ test('install and update replace selected skills without retaining backups or ob
   }
   const unchanged = await applyInstallPlan(await createInstallPlan({ repositoryRoot: setup.repositoryRoot, targets }));
   assert.equal(unchanged.installed.length, 0);
-  assert.equal(unchanged.unchanged.length, 2);
+  assert.equal(unchanged.unchanged.length, 3);
   await assertNoInstallerArtifacts(setup.directory);
 });
 
@@ -130,11 +131,12 @@ async function answerInstaller(setup, answers) {
   }
 }
 
-test('menu selections install to both targets or the requested individual target', async t => {
+test('menu selections install to all targets or the requested individual target', async t => {
   for (const [name, answers, ids] of [
-    ['both', ['', '', '', 'y'], ['codex', 'antigravity']],
-    ['Codex', ['2', '', 'y'], ['codex']],
-    ['Antigravity', ['3', '', 'y'], ['antigravity']],
+    ['all', ['', '', '', '', 'y'], ['claude', 'codex', 'antigravity']],
+    ['Claude', ['2', '', 'y'], ['claude']],
+    ['Codex', ['3', '', 'y'], ['codex']],
+    ['Antigravity', ['4', '', 'y'], ['antigravity']],
   ]) {
     await t.test(name, async subtest => {
       const setup = await fixture(subtest);
@@ -154,7 +156,7 @@ test('menu selections install to both targets or the requested individual target
 test('canceling before confirmation leaves destination directories untouched', async t => {
   const setup = await fixture(t);
   await skill(setup.repositoryRoot, 'sample', 'source');
-  const result = await answerInstaller(setup, ['', '', '', 'n']);
+  const result = await answerInstaller(setup, ['', '', '', '', 'n']);
   assert.equal(result.cancelled, true);
   assert.deepEqual(await fs.readdir(setup.homeDirectory), []);
   await assertNoInstallerArtifacts(setup.directory);
