@@ -43,7 +43,7 @@ function wrap(value, width, preserveWhitespace = false) {
   return lines.length ? lines : [''];
 }
 
-export function renderInstallSuccess(plan, result, { columns = 80, isTTY = false, environment = {} } = {}) {
+export function renderInstallSuccess(plan, result, { version, columns = 80, isTTY = false, environment = {} } = {}) {
   const color = !Object.hasOwn(environment, 'NO_COLOR') && environment.TERM !== 'dumb' &&
     environment.FORCE_COLOR !== '0' && Boolean(isTTY || environment.FORCE_COLOR);
   const paint = (text, tone) => color && tone ? `\x1b[${tones[tone]}m${text}\x1b[0m` : text;
@@ -58,7 +58,7 @@ export function renderInstallSuccess(plan, result, { columns = 80, isTTY = false
   const agents = plan.targets.map(target => target.label).join('/');
   const hasTrivy = plan.skills.some(skill => skill.name === 'trivy-porter');
 
-  add('MEA SKILLS', 'brand');
+  add(version ? `MEA SKILLS · v${version}` : 'MEA SKILLS', 'brand');
   add();
   add(result.installed.length ? '✓ Instalasi selesai' : '✓ Semua skill sudah terbaru', 'success');
   add(`${plan.skills.length} skill · ${plan.targets.length} tujuan instalasi`, 'muted');

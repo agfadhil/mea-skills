@@ -7,8 +7,16 @@ A collection of skills to assist AI agents with writing commit messages, prepari
 Ensure **Node.js 20 or later** and **pnpm** are installed, then run from the root of this repository:
 
 ```sh
-pnpm run install:skills
+pnpm run mea-skills:install
 ```
+
+Current version: **1.0.0**. Check the installed repository version at any time with:
+
+```sh
+pnpm run mea-skills:version
+```
+
+The installer also shows the version in its completion summary.
 
 The installer uses Node.js built-in modules and does not require running `pnpm install` or installing external npm dependencies. The same command works across macOS/Linux terminals and Windows PowerShell or Command Prompt.
 
@@ -44,7 +52,7 @@ For custom paths, the installer accepts `~/...`, `$HOME/...`, `%USERPROFILE%\...
 
 ### Updates
 
-Run `pnpm run install:skills` again whenever repository contents are updated. Skills with identical contents are skipped. Other skill folders at the destination remain untouched.
+Run `pnpm run mea-skills:install` again whenever repository contents are updated. Skills with identical contents are skipped. Other skill folders at the destination remain untouched.
 
 The installer prepares and verifies the new copies before replacing each selected skill folder. Updates replace the entire folder, including removing files no longer present in the source. Previous versions are overwritten without creating backup folders or retaining old snapshots.
 
@@ -244,6 +252,10 @@ The installer only copies skill files. Agent integrations and runtime tools must
 Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file and that the name in the YAML frontmatter matches the directory name. Claude Code picks up skills from `~/.claude/skills`; start a new session if they do not appear. Codex detects skill changes automatically; restart Codex if new skills do not appear immediately. For Antigravity, start a new agent session after installation. Refer to the [Codex documentation](https://learn.chatgpt.com/docs/build-skills) and [Antigravity documentation](https://antigravity.google/docs/skills?app=antigravity-ide) for local skill discovery details.
 
 WSL uses a Linux home directory separate from the Windows user profile. Run the installer inside the environment where the agent operates: running from WSL installs to the WSL home directory, whereas running from native Windows installs to the Windows user profile. For remote or containerized environments, verify the path read by the agent in that container. After installation, start a new agent session if changes are not detected.
+
+## Versioning
+
+The repository version lives in `package.json` and starts at `1.0.0` (run `pnpm run mea-skills:version` to print it). Every push to `main` runs [`.github/workflows/bump-version.yml`](.github/workflows/bump-version.yml), which bumps the minor version (`1.0.0` → `1.1.0` → `1.2.0` …), commits it as `chore(release): vX.Y.0`, and creates a matching `vX.Y.0` tag. Run `git pull` after pushing to pick up the release commit. For a major release, run `npm version major` locally and push with `--follow-tags`; the next push continues from the new major (`2.0.0` → `2.1.0`).
 
 ## Testing
 

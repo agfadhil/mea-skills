@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyInstallPlan, createInstallPlan, getDefaultTargets, resolveDestination } from './skill-installer.mjs';
+import { readVersion } from './mea-skills-version.mjs';
 import { renderInstallSuccess } from './installer-output.mjs';
 
 const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -77,8 +78,9 @@ export async function runInstaller({
       print('Masukkan Y untuk melanjutkan atau N untuk membatalkan.');
     }
     const result = await applyInstallPlan(plan);
+    const version = await readVersion(repositoryRoot).catch(() => undefined);
     output.write(renderInstallSuccess(plan, result, {
-      columns: output.columns, isTTY: output.isTTY, environment,
+      version, columns: output.columns, isTTY: output.isTTY, environment,
     }));
     return { cancelled: false, ...result };
   } catch (error) {
@@ -91,7 +93,7 @@ export async function runInstaller({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2).filter((item) => item !== '--');
   if (args.length && args.every((item) => ['--help', '-h'].includes(item))) {
-    console.log('Pemakaian: pnpm run install:skills\nPilih Claude/Codex/Antigravity, periksa atau ubah path, lalu konfirmasikan instalasi.');
+    console.log('Pemakaian: pnpm run mea-skills:install\nPilih Claude/Codex/Antigravity, periksa atau ubah path, lalu konfirmasikan instalasi.');
   } else if (args.length) {
     console.error(`Argumen tidak dikenal: ${args.join(' ')}. Gunakan --help untuk bantuan.`);
     process.exitCode = 1;
