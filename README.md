@@ -123,11 +123,13 @@ Here `app` is the project directory name, normalized to a valid lowercase Docker
 
 Add `.trivy-porter/` to the project's `.dockerignore` when session storage is inside the build context, so reports and metadata are not copied into the image. The CLI does not edit that file automatically.
 
-After the scan, open Codex in the application project and paste the complete handoff printed by the CLI, including its project and storage paths. The `$trivy-porter` prefix explicitly invokes the installed skill in Codex:
+After the scan, open Codex in the application project and paste the complete handoff printed by the CLI. Replace `n` with the number of findings to fix (`0` = all items at once), or drop `jumlah temuan: n` for analysis only. `--project` and `--state-dir` appear only when they differ from the defaults (terminal cwd and `<cwd>/.trivy-porter`); add `--project /path/to/app` yourself if the chat is opened in another folder. The `$trivy-porter` prefix explicitly invokes the installed skill in Codex:
 
 ```text
-$trivy-porter analyze SESSION_ID --project /path/to/app --state-dir /path/to/trivy-results
+$trivy-porter analyze SESSION_ID jumlah temuan: n
 ```
+
+The panel ends with a reminder that `trivy-porter --clean` clears local Trivy Porter data.
 
 The completion panel separates the scan process outcome, saved session details, and next step. It adapts to terminal width and uses color when supported, respecting `NO_COLOR`. The complete copyable chat command appears outside the panel without inserted line breaks. A saved report still needs agent assessment of findings and coverage; an exit code alone is not that assessment.
 

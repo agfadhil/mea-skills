@@ -143,6 +143,9 @@ def render_handoff(data, project, state_base, command, columns=None, is_tty=Fals
         add("Exit code saja tidak membuktikan nol temuan atau cakupan scan lengkap.", "muted")
         if result.get("truncated") and result.get("interrupted"):
             add("Tangkapan output juga terbatas.", "warning")
+        add("Ganti n dengan jumlah temuan yang ingin diperbaiki; 0 = semua item langsung dikerjakan. "
+            "Hapus \"jumlah temuan: n\" jika hanya ingin analisis.", "muted")
+    add("Tambahkan --project PATH jika chat agent tidak dibuka di folder proyek yang discan.", "muted")
     add("Kirim secara manual; terminal tidak mengirim pesan ke chat.", "muted")
     add()
 
@@ -160,4 +163,5 @@ def render_handoff(data, project, state_base, command, columns=None, is_tty=Fals
             lines.append(" " * outer_indent + paint(text, row_tone))
     if boxed:
         lines.append(border("╰", "╯"))
-    return "\n" + "\n".join(lines) + "\n\n" + paint("SALIN KE CHAT", "label") + "\n" + command + "\n"
+    return ("\n" + "\n".join(lines) + "\n\n" + paint("SALIN KE CHAT", "label") + "\n" + command + "\n\n"
+            + paint("Bersihkan data trivy-porter: trivy-porter --clean", "muted") + "\n")

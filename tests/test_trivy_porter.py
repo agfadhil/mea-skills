@@ -166,13 +166,15 @@ class TerminalIntegrationTests(unittest.TestCase):
         return sessions[0]
 
     def assert_chat_handoff(self, output, action, session_id):
-        arguments = [action, session_id, "--project", str(self.project.resolve()),
-                     "--state-dir", str(self.state.resolve())]
+        # Fixtures run from the project, so only the custom storage root is printed.
+        arguments = [action, session_id, "--state-dir", str(self.state.resolve())]
+        suffix = " jumlah temuan: n" if action == "analyze" else ""
         expected = "$trivy-porter " + (subprocess.list2cmdline(arguments) if os.name == "nt" else shlex.join(arguments))
         commands = [line for line in output.splitlines() if line.startswith("$trivy-porter ")]
-        self.assertEqual(commands, [expected])
+        self.assertEqual(commands, [expected + suffix])
         if os.name != "nt":
-            self.assertEqual(shlex.split(commands[0]), ["$trivy-porter", *arguments])
+            self.assertEqual(shlex.split(commands[0].removesuffix(suffix)), ["$trivy-porter", *arguments])
+        self.assertIn("trivy-porter --clean", output)
 
     def create_session(self, stage, **fields):
         payload = {

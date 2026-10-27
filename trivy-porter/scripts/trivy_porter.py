@@ -179,12 +179,18 @@ class Session:
     def save(self):
         self.data = store.save_data(self.data, self.data["session_id"], self.root, self.base, self.directory)
 
+    def location_args(self):
+        # Defaults (cwd project, <cwd>/.trivy-porter) are implied; print only overrides.
+        cwd = Path.cwd().resolve()
+        args = [] if self.root == str(cwd) else ["--project", self.root]
+        return args + ([] if self.base == (cwd / ".trivy-porter").resolve() else ["--state-dir", str(self.base)])
+
     def handoff(self):
         action = "analyze" if self.data["stage"] == "awaiting_analysis" else "continue"
         # The skill mention is chat syntax; quote only the arguments as needed.
-        command = "$trivy-porter " + command_display([
-            action, self.data["session_id"], "--project", self.root, "--state-dir", str(self.base),
-        ])
+        command = "$trivy-porter " + command_display([action, self.data["session_id"], *self.location_args()])
+        if action == "analyze":
+            command += " jumlah temuan: n"
         print(terminal_output.render_handoff(
             self.data, self.root, self.artifact_directory, command,
             columns=shutil.get_terminal_size(fallback=(80, 24)).columns,
@@ -193,7 +199,7 @@ class Session:
 
     def terminal_command(self):
         return command_display(["trivy-porter", "continue", "--session", self.data["session_id"],
-                                "--project", self.root, "--state-dir", str(self.base)])
+                                *self.location_args()])
 
 
 def select_session(project, session_id, state_dir=None):

@@ -85,8 +85,8 @@ class LocalStateIntegrationTests(unittest.TestCase):
     def test_default_scan_handoff_can_be_read_by_helper_from_another_cwd(self):
         result = self.run_cli("\n\n\n")
         session = self.only_session()
-        self.assertIn("--state-dir", result.stdout)
-        self.assertIn(str(self.state.resolve()), result.stdout)
+        commands = [line for line in result.stdout.splitlines() if line.startswith("$trivy-porter ")]
+        self.assertEqual(commands, ["$trivy-porter analyze " + session["session_id"] + " jumlah temuan: n"])
         read = subprocess.run(
             [sys.executable, str(STORE), "read", "--project", str(self.project),
              "--state-dir", str(self.state), "--session", session["session_id"]],
@@ -96,6 +96,18 @@ class LocalStateIntegrationTests(unittest.TestCase):
         self.assertEqual(json.loads(read.stdout)["session_id"], session["session_id"])
         self.assertEqual(session["stage"], "awaiting_analysis")
         self.assert_state_excluded(self.calls(scans_only=True)[0]["args"])
+
+    def test_handoff_from_another_cwd_names_the_project_only(self):
+        launcher = self.root / "launcher directory"
+        launcher.mkdir()
+        result = self.run_cli("\n\n\n", cwd=launcher)
+        state = launcher / ".trivy-porter"
+        session = self.only_session(state=state)
+        commands = [line for line in result.stdout.splitlines() if line.startswith("$trivy-porter ")]
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(scan_tests.shlex.split(commands[0].removesuffix(" jumlah temuan: n")),
+                         ["$trivy-porter", "analyze", session["session_id"], "--project",
+                          str(self.project.resolve())])
 
     def test_default_cli_and_helper_share_the_same_cwd_store(self):
         self.run_cli("\n\n\n")
