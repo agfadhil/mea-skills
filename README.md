@@ -145,14 +145,30 @@ Then copy the printed `$trivy-porter continue ...` handoff into the agent chat t
 
 An integrated VS Code terminal works like any other terminal. The CLI does not automatically send messages to the Codex extension, and does not require Codex CLI, an API key, or an additional npm dependency. The saved session provides the handoff between the terminal and agent.
 
-To expose `trivy-porter` as a command from any project, optionally run `npm link` once in this repository. Then, in your application directory:
+To expose `trivy-porter` as a command from any project, run one of these once in this repository:
+
+| You use | Command | Result |
+| --- | --- | --- |
+| One Node.js version | `npm link` | Links the command into the active Node.js version's global `bin`. After switching versions with nvm, mise, or fnm, the command is not found until you run `npm link` again in that version. |
+| Several Node.js versions | `pnpm run mea-skills:terminal-link` | Creates a symlink at `~/.local/bin/trivy-porter` (a `trivy-porter.cmd` file on Windows) pointing to this repository, so the command works with any active Node.js version. |
+
+`mea-skills:terminal-link` confirms each step before changing anything: creating the `.cmd` file on Windows, choosing the destination folder, using a folder that is not on `PATH`, creating a missing folder, overwriting an existing `trivy-porter`, and adding execute permission to the script. It never runs `sudo` or requests Administrator rights; when a folder is not writable, it asks for another one. It also warns when another `trivy-porter` earlier on `PATH` (for example an old `npm link` or a mise shim) would take precedence.
+
+When switching methods, remove the old link first so it does not shadow the new one:
+
+| Previously used | Remove with |
+| --- | --- |
+| `npm link` | `npm unlink -g mea-skills` in every Node.js version where it was linked (with mise: `mise exec node@<version> -- npm unlink -g mea-skills`, then `mise reshim`) |
+| `mea-skills:terminal-link` | `rm ~/.local/bin/trivy-porter` on macOS/Linux, or `Remove-Item "$env:USERPROFILE\.local\bin\trivy-porter.cmd"` in PowerShell (adjust for a custom folder) |
+
+Then, in your application directory:
 
 ```sh
 trivy-porter
 trivy-porter continue --session SESSION_ID
 ```
 
-`--project` defaults to the current working directory. Keep this repository available when using its linked command. The skill installer copies skill folders and supporting scripts; it does not register this global command. An installed skill can instead be run directly with Python 3, without Node.js:
+`--project` defaults to the current working directory. Keep this repository available when using its linked command. The skill installer copies skill folders and supporting scripts; it does not register this global command, but its completion summary lists both options. An installed skill can instead be run directly with Python 3, without Node.js:
 
 ```sh
 python3 ~/.codex/skills/trivy-porter/scripts/trivy_porter.py --project /path/to/app

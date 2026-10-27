@@ -43,7 +43,9 @@ function wrap(value, width, preserveWhitespace = false) {
   return lines.length ? lines : [''];
 }
 
-export function renderInstallSuccess(plan, result, { version, columns = 80, isTTY = false, environment = {} } = {}) {
+export function renderInstallSuccess(plan, result, {
+  version, columns = 80, isTTY = false, environment = {}, platform = process.platform,
+} = {}) {
   const color = !Object.hasOwn(environment, 'NO_COLOR') && environment.TERM !== 'dumb' &&
     environment.FORCE_COLOR !== '0' && Boolean(isTTY || environment.FORCE_COLOR);
   const paint = (text, tone) => color && tone ? `\x1b[${tones[tone]}m${text}\x1b[0m` : text;
@@ -74,7 +76,7 @@ export function renderInstallSuccess(plan, result, { version, columns = 80, isTT
   add();
   rows.push({ divider: true });
   add();
-  add('LANGKAH BERIKUTNYA', 'label');
+  add('INSTRUKSI SELANJUTNYA', 'label');
   add();
   add('01  Buka sesi agent baru', 'heading');
   add(`Jika skill belum muncul, mulai sesi ${agents} yang baru.`, 'muted', 4);
@@ -84,10 +86,32 @@ export function renderInstallSuccess(plan, result, { version, columns = 80, isTT
     add('02  Siapkan Trivy Porter', 'heading');
     add('Pastikan Git, Trivy, dan Python 3 tersedia di terminal.', 'muted', 4);
     add();
-    add('Aktifkan command sekali dari repository mea-skills:', 'muted', 4);
-    add('npm link', 'command', 4);
+    add('03  Aktifkan command trivy-porter', 'heading');
+    add('Jalankan sekali dari repository mea-skills, pilih salah satu:', 'muted', 4);
     add();
-    add('Lalu jalankan dari folder proyek aplikasi:', 'muted', 4);
+    add('A. Hanya memakai satu versi Node.js', 'heading', 4);
+    add('npm link', 'command', 7);
+    add('Command dipasang di folder global versi Node.js yang aktif saat ini. Setelah berganti versi ' +
+      '(nvm, mise, fnm), command tidak ditemukan sampai npm link dijalankan lagi di versi itu.', 'muted', 7);
+    add();
+    add('B. Memakai beberapa versi Node.js', 'heading', 4);
+    add('pnpm run mea-skills:terminal-link', 'command', 7);
+    add('Membuat symlink di ~/.local/bin (file .cmd di Windows) yang menunjuk ke repository ini, ' +
+      'sehingga command tersedia di semua versi Node.js. Setiap langkah dikonfirmasi lebih dulu.', 'muted', 7);
+    add();
+    add('04  Hapus link lama (jika pernah dipasang)', 'heading');
+    add('Lakukan saat berpindah metode, agar command lama tidak terbaca lebih dulu di PATH.', 'muted', 4);
+    add();
+    add('Sebelumnya memakai npm link — jalankan di setiap versi Node.js yang pernah dipakai:', 'muted', 4);
+    add('npm unlink -g mea-skills', 'command', 7);
+    add('Dengan mise: mise exec node@<versi> -- npm unlink -g mea-skills, lalu mise reshim.', 'muted', 7);
+    add();
+    add('Sebelumnya memakai mea-skills:terminal-link (sesuaikan jika memakai folder custom):', 'muted', 4);
+    add(platform === 'win32'
+      ? 'Remove-Item "$env:USERPROFILE\\.local\\bin\\trivy-porter.cmd"'
+      : 'rm ~/.local/bin/trivy-porter', 'command', 7, true);
+    add();
+    add('05  Jalankan dari folder proyek aplikasi', 'heading');
     add('trivy-porter', 'command', 4);
   }
   add();

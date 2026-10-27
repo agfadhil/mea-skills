@@ -80,7 +80,7 @@ export async function runInstaller({
     const result = await applyInstallPlan(plan);
     const version = await readVersion(repositoryRoot).catch(() => undefined);
     output.write(renderInstallSuccess(plan, result, {
-      version, columns: output.columns, isTTY: output.isTTY, environment,
+      version, columns: output.columns, isTTY: output.isTTY, environment, platform,
     }));
     return { cancelled: false, ...result };
   } catch (error) {

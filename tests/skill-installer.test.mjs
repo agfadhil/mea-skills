@@ -5,6 +5,7 @@ import path from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { runInstaller } from '../scripts/install-skills.mjs';
+import { renderInstallSuccess } from '../scripts/installer-output.mjs';
 import { applyInstallPlan, createInstallPlan, getDefaultTargets } from '../scripts/skill-installer.mjs';
 
 async function fixture(t) {
@@ -160,4 +161,16 @@ test('canceling before confirmation leaves destination directories untouched', a
   assert.equal(result.cancelled, true);
   assert.deepEqual(await fs.readdir(setup.homeDirectory), []);
   await assertNoInstallerArtifacts(setup.directory);
+});
+
+test('next steps explain npm link for one Node.js version and terminal-link for several', () => {
+  const plan = { skills: [{ name: 'trivy-porter' }], targets: [{ id: 'claude', label: 'Claude', directory: '/skills' }] };
+  const text = renderInstallSuccess(plan, { installed: [], unchanged: [] }, { columns: 200 });
+  assert.match(text, /INSTRUKSI SELANJUTNYA/u);
+  assert.match(text, /satu versi Node\.js[\s\S]*npm link/u);
+  assert.match(text, /beberapa versi Node\.js[\s\S]*pnpm run mea-skills:terminal-link/u);
+  assert.match(text, /npm unlink -g mea-skills/u);
+  assert.match(text, /rm ~\/\.local\/bin\/trivy-porter/u);
+  const windows = renderInstallSuccess(plan, { installed: [], unchanged: [] }, { columns: 200, platform: 'win32' });
+  assert.match(windows, /Remove-Item "\$env:USERPROFILE\\\.local\\bin\\trivy-porter\.cmd"/u);
 });
