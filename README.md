@@ -10,7 +10,7 @@ Ensure **Node.js 20 or later** and **pnpm** are installed, then run from the roo
 pnpm run mea-skills:install
 ```
 
-Current version: **1.0.0**. Check the installed repository version at any time with:
+Current version: **1.2.0**. Check the installed repository version at any time with:
 
 ```sh
 pnpm run mea-skills:version
@@ -273,7 +273,7 @@ WSL uses a Linux home directory separate from the Windows user profile. Run the 
 
 ## Versioning
 
-The repository version lives in `package.json` and starts at `1.0.0` (run `pnpm run mea-skills:version` to print it). Every push to `main` runs [`.github/workflows/bump-version.yml`](.github/workflows/bump-version.yml), which bumps the minor version (`1.0.0` → `1.1.0` → `1.2.0` …), commits it as `chore(release): vX.Y.0`, and creates a matching `vX.Y.0` tag. Run `git pull` after pushing to pick up the release commit. For a major release, run `npm version major` locally and push with `--follow-tags`; the next push continues from the new major (`2.0.0` → `2.1.0`).
+The repository version lives in `package.json` and starts at `1.0.0` (run `pnpm run mea-skills:version` to print it). Every push to `main` runs [`.github/workflows/bump-version.yml`](.github/workflows/bump-version.yml), which bumps the minor version (`1.0.0` → `1.1.0` → `1.2.0` …), commits it as `chore(release): vX.Y.0 [skip ci]`, and creates a matching annotated `vX.Y.0` tag. The release commit and tag message list every commit since the previous tag, one per line as `- <subject> (<short hash>)`, skipping merge and earlier release commits. The npm `version` script runs [`scripts/sync-readme-version.mjs`](scripts/sync-readme-version.mjs) during the bump, so the "Current version" line in this README is updated in the same release commit and always matches `package.json` and the tag; the script fails the release if that line is missing. Run `git pull` after pushing to pick up the release commit. For a major release, run `npm version major` locally and push with `--follow-tags`; the next push continues from the new major (`2.0.0` → `2.1.0`).
 
 ## Testing
 

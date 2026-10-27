@@ -26,10 +26,16 @@ jobs:
         with:
           node-version: 20
 
+      # The release commit and tag list the commits since the previous tag; the npm `version`
+      # script syncs README.md so package.json, README, and the tag share one version.
       - name: Bump minor version, commit, and tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
-          npm version minor -m "chore(release): v%s [skip ci]"
+          previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          changes=$(git log --no-merges --invert-grep --grep='^chore(release):' --format='- %s (%h)' "${previous:+$previous..}HEAD")
+          message="chore(release): v%s [skip ci]"
+          if [ -n "$changes" ]; then message="$message"$'\n\n'"$changes"; fi
+          npm version minor -m "$message"
           git push origin HEAD:main --follow-tags
