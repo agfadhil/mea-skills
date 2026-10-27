@@ -159,7 +159,9 @@ When switching methods, remove the old link first so it does not shadow the new 
 | Previously used | Remove with |
 | --- | --- |
 | `npm link` | `npm unlink -g mea-skills` in every Node.js version where it was linked (with mise: `mise exec node@<version> -- npm unlink -g mea-skills`, then `mise reshim`) |
-| `mea-skills:terminal-link` | `rm ~/.local/bin/trivy-porter` on macOS/Linux, or `Remove-Item "$env:USERPROFILE\.local\bin\trivy-porter.cmd"` in PowerShell (adjust for a custom folder) |
+| `mea-skills:terminal-link` | `pnpm run mea-skills:terminal-unlink` from this repository |
+
+`mea-skills:terminal-unlink` asks for the link folder (default `~/.local/bin`) and removes only the `trivy-porter` symlink or `trivy-porter.cmd` file that `terminal-link` created, after confirmation. A symlink pointing to another location (for example an old repository path) needs explicit approval, and files mea-skills did not create are never removed. The script, the folder, and any `npm link` stay untouched; it reports any other `trivy-porter` still on `PATH`.
 
 Then, in your application directory:
 

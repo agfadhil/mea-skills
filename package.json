@@ -14,6 +14,7 @@
     "mea-skills:install": "node scripts/install-skills.mjs",
     "mea-skills:version": "node scripts/mea-skills-version.mjs",
     "mea-skills:terminal-link": "node scripts/terminal-link.mjs",
+    "mea-skills:terminal-unlink": "node scripts/terminal-unlink.mjs",
     "trivy-porter": "node scripts/trivy-porter.mjs",
     "test": "node --test",
     "test:trivy-porter": "python3 -B -m unittest discover -s tests -p \"test_*.py\""

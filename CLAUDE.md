@@ -28,6 +28,7 @@ Package manager is pnpm in docs, but there are **no npm dependencies**; Node >= 
 pnpm run mea-skills:install      # interactive installer (scripts/install-skills.mjs)
 pnpm run mea-skills:version      # prints "mea-skills vX.Y.Z"
 pnpm run mea-skills:terminal-link  # link trivy-porter into ~/.local/bin (.cmd on Windows), Node-version independent
+pnpm run mea-skills:terminal-unlink  # remove only the link created by terminal-link
 pnpm run trivy-porter            # Node launcher -> Python CLI
 pnpm test                        # node --test (installer + launcher tests)
 pnpm run test:trivy-porter       # python3 -B -m unittest discover -s tests -p "test_*.py"
@@ -40,7 +41,7 @@ Run a single test: `node --test tests/skill-installer.test.mjs` or `python3 -B -
 **Installer** (`scripts/`)
 - `skill-installer.mjs` — core logic: `getDefaultTargets`, `resolveDestination` (expands `~`, `$HOME`, `%USERPROFILE%`, quotes; rejects cross-OS paths), `discoverSkills`, `createInstallPlan`, `applyInstallPlan`. Compares SHA-256 manifests so identical skills are skipped; updates replace the whole skill folder after preparing/verifying the copy. Ignores `.git`, `node_modules`, `__pycache__`, `.DS_Store`, `*.pyc`; symlinks inside a skill are rejected.
 - `install-skills.mjs` — interactive prompt flow (target choice, path, plan review, `[Y/n]` confirm; nothing is written before confirmation). `installer-output.mjs` formats the completion summary, including the `npm link` vs `terminal-link` next steps; the installer itself never creates the CLI link.
-- `terminal-link.mjs` — separate interactive command that symlinks `scripts/trivy-porter.mjs` into a user bin folder (writes a `trivy-porter.cmd` shim on Windows). Every change (Windows `.cmd`, folder off `PATH`, folder creation, overwrite, `chmod +x`, final plan) is confirmed first; it never escalates privileges.
+- `terminal-link.mjs` — separate interactive command that symlinks `scripts/trivy-porter.mjs` into a user bin folder (writes a `trivy-porter.cmd` shim on Windows). Every change (Windows `.cmd`, folder off `PATH`, folder creation, overwrite, `chmod +x`, final plan) is confirmed first; it never escalates privileges. It also exports the shared prompt and link-inspection helpers used by `terminal-unlink.mjs`, which removes only links mea-skills created (symlink to this repo, or a `.cmd` carrying the mea-skills marker).
 - Functions take injectable `platform`/`homeDirectory`/`cwd`/`env` params so tests can simulate Windows/POSIX — keep that pattern.
 
 **trivy-porter**

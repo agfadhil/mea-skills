@@ -170,7 +170,5 @@ test('next steps explain npm link for one Node.js version and terminal-link for 
   assert.match(text, /satu versi Node\.js[\s\S]*npm link/u);
   assert.match(text, /beberapa versi Node\.js[\s\S]*pnpm run mea-skills:terminal-link/u);
   assert.match(text, /npm unlink -g mea-skills/u);
-  assert.match(text, /rm ~\/\.local\/bin\/trivy-porter/u);
-  const windows = renderInstallSuccess(plan, { installed: [], unchanged: [] }, { columns: 200, platform: 'win32' });
-  assert.match(windows, /Remove-Item "\$env:USERPROFILE\\\.local\\bin\\trivy-porter\.cmd"/u);
+  assert.match(text, /pnpm run mea-skills:terminal-unlink/u);
 });

@@ -43,9 +43,7 @@ function wrap(value, width, preserveWhitespace = false) {
   return lines.length ? lines : [''];
 }
 
-export function renderInstallSuccess(plan, result, {
-  version, columns = 80, isTTY = false, environment = {}, platform = process.platform,
-} = {}) {
+export function renderInstallSuccess(plan, result, { version, columns = 80, isTTY = false, environment = {} } = {}) {
   const color = !Object.hasOwn(environment, 'NO_COLOR') && environment.TERM !== 'dumb' &&
     environment.FORCE_COLOR !== '0' && Boolean(isTTY || environment.FORCE_COLOR);
   const paint = (text, tone) => color && tone ? `\x1b[${tones[tone]}m${text}\x1b[0m` : text;
@@ -106,10 +104,9 @@ export function renderInstallSuccess(plan, result, {
     add('npm unlink -g mea-skills', 'command', 7);
     add('Dengan mise: mise exec node@<versi> -- npm unlink -g mea-skills, lalu mise reshim.', 'muted', 7);
     add();
-    add('Sebelumnya memakai mea-skills:terminal-link (sesuaikan jika memakai folder custom):', 'muted', 4);
-    add(platform === 'win32'
-      ? 'Remove-Item "$env:USERPROFILE\\.local\\bin\\trivy-porter.cmd"'
-      : 'rm ~/.local/bin/trivy-porter', 'command', 7, true);
+    add('Sebelumnya memakai mea-skills:terminal-link — jalankan dari repository mea-skills:', 'muted', 4);
+    add('pnpm run mea-skills:terminal-unlink', 'command', 7);
+    add('Hanya menghapus link buatan mea-skills, setelah dikonfirmasi.', 'muted', 7);
     add();
     add('05  Jalankan dari folder proyek aplikasi', 'heading');
     add('trivy-porter', 'command', 4);

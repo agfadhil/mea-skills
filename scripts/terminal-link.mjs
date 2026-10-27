@@ -7,12 +7,36 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { resolveDestination } from './skill-installer.mjs';
 
-const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const commandName = 'trivy-porter';
+export const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+export const commandName = 'trivy-porter';
 const shimMarker = 'rem Dibuat oleh mea-skills:terminal-link';
-const pathApi = (platform) => platform === 'win32' ? path.win32 : path.posix;
+export const pathApi = (platform) => platform === 'win32' ? path.win32 : path.posix;
+export const osLabel = (platform) => ({ win32: 'Windows', darwin: 'macOS', linux: 'Linux' }[platform] || platform);
 
-class Cancelled extends Error {}
+export class Cancelled extends Error {}
+
+export function createPrompt({ input, output }) {
+  const readline = createInterface({ input, output, terminal: Boolean(input.isTTY && output.isTTY) });
+  const lines = readline[Symbol.asyncIterator]();
+  readline.on('SIGINT', () => readline.close());
+  const print = (message = '') => output.write(`${message}\n`);
+  const ask = async (prompt) => {
+    output.write(prompt);
+    const answer = await lines.next();
+    if (answer.done) throw new Cancelled();
+    return answer.value.trim();
+  };
+  const confirm = async (prompt, fallback) => {
+    while (true) {
+      const answer = (await ask(`${prompt} ${fallback ? '[Y/n]' : '[y/N]'}: `)).toLowerCase();
+      if (!answer) return fallback;
+      if (['y', 'yes', 'ya'].includes(answer)) return true;
+      if (['n', 'no', 'tidak'].includes(answer)) return false;
+      print('Masukkan Y atau N.');
+    }
+  };
+  return { print, ask, confirm, close: () => readline.close() };
+}
 
 export function getDefaultLinkDirectory({ platform = process.platform, homeDirectory = homedir() } = {}) {
   return pathApi(platform).join(homeDirectory, '.local', 'bin');
@@ -43,13 +67,14 @@ export function isOnPath(directory, { platform = process.platform, env = process
 }
 
 // Returns the first command found in PATH entries listed before `stopAt`, i.e. one that would shadow a link there.
+// Without `stopAt`, returns the first match anywhere on PATH.
 export async function findShadowingCommand(name, stopAt, { platform = process.platform, env = process.env } = {}) {
   const paths = pathApi(platform);
   const same = samePath(platform);
   const extensions = platform === 'win32'
     ? (envValue(env, 'PATHEXT', platform) || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
   for (const entry of pathEntries(platform, env)) {
-    if (same(entry, stopAt)) return undefined;
+    if (stopAt && same(entry, stopAt)) return undefined;
     for (const extension of extensions) {
       const candidate = paths.join(entry, name + extension);
       try {
@@ -120,31 +145,13 @@ export async function runTerminalLink({
   repositoryRoot = repositoryRootDefault, input = process.stdin, output = process.stdout,
   platform = process.platform, homeDirectory = homedir(), environment = process.env, cwd = process.cwd(),
 } = {}) {
-  const readline = createInterface({ input, output, terminal: Boolean(input.isTTY && output.isTTY) });
-  const lines = readline[Symbol.asyncIterator]();
-  readline.on('SIGINT', () => readline.close());
-  const print = (message = '') => output.write(`${message}\n`);
-  const ask = async (prompt) => {
-    output.write(prompt);
-    const answer = await lines.next();
-    if (answer.done) throw new Cancelled();
-    return answer.value.trim();
-  };
-  const confirm = async (prompt, fallback) => {
-    while (true) {
-      const answer = (await ask(`${prompt} ${fallback ? '[Y/n]' : '[y/N]'}: `)).toLowerCase();
-      if (!answer) return fallback;
-      if (['y', 'yes', 'ya'].includes(answer)) return true;
-      if (['n', 'no', 'tidak'].includes(answer)) return false;
-      print('Masukkan Y atau N.');
-    }
-  };
+  const { print, ask, confirm, close } = createPrompt({ input, output });
   const windows = platform === 'win32';
   const script = pathApi(platform).join(repositoryRoot, 'scripts', 'trivy-porter.mjs');
 
   try {
     print('MEA Skills — Terminal Link');
-    print(`OS: ${{ win32: 'Windows', darwin: 'macOS', linux: 'Linux' }[platform] || platform}`);
+    print(`OS: ${osLabel(platform)}`);
     print();
     print('Perintah ini membuat command trivy-porter yang tidak bergantung pada versi Node.js aktif');
     print('(nvm, mise, fnm, dan sejenisnya). Command menunjuk langsung ke script di repository ini:');
@@ -238,13 +245,13 @@ export async function runTerminalLink({
     print('  trivy-porter --help');
     print();
     print('Untuk menghapusnya nanti:');
-    print(windows ? `  Remove-Item "${plan.linkPath}"` : `  rm "${plan.linkPath}"`);
+    print('  pnpm run mea-skills:terminal-unlink');
     return { cancelled: false, changed: true, linkPath: plan.linkPath };
   } catch (error) {
     if (!(error instanceof Cancelled)) throw error;
     print('\nDibatalkan. Belum ada file yang diubah.');
     return { cancelled: true };
-  } finally { readline.close(); }
+  } finally { close(); }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
