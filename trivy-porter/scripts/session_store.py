@@ -31,6 +31,11 @@ SESSION_ID = re.compile(r"[0-9a-f]{32}\Z")
 PARTITION_ID = re.compile(r"[0-9a-f]{64}\Z")
 RUN_DIRECTORY = re.compile(r"[0-9]{8}-[0-9]{4}-(?:fs|image|scan)(?:-[1-9][0-9]*)?\Z")
 STORAGE_IGNORE = "# Trivy Porter session storage\n*\n"
+# Earlier Windows releases wrote the marker in text mode, translating it to CRLF; that storage is not migrated.
+LEGACY_STORAGE_IGNORE = STORAGE_IGNORE.replace("\n", "\r\n").encode("utf-8")
+LEGACY_STORAGE_HINT = ("Session storage was created by an older Trivy Porter release and is no longer supported. "
+                       "Run `trivy-porter --clean` from the project folder to remove .trivy-porter, then run "
+                       "`trivy-porter` to scan again.")
 
 
 class StoreError(Exception):
@@ -117,9 +122,12 @@ def owned_directory(path):
     if linked(path) or not path.is_dir():
         return False
     marker = path / ".gitignore"
-    return (not linked(marker) and marker.is_file()
-            and marker.stat().st_size == len(STORAGE_IGNORE.encode("utf-8"))
-            and marker.read_text(encoding="utf-8") == STORAGE_IGNORE)
+    if linked(marker) or not marker.is_file():
+        return False
+    size = marker.stat().st_size
+    if size == len(LEGACY_STORAGE_IGNORE) and marker.read_bytes() == LEGACY_STORAGE_IGNORE:
+        raise StoreError(LEGACY_STORAGE_HINT)
+    return size == len(STORAGE_IGNORE.encode("utf-8")) and marker.read_bytes() == STORAGE_IGNORE.encode("utf-8")
 
 
 def session_paths(directory, project_root):
@@ -186,11 +194,15 @@ def ensure_storage_ignore(directory):
     if linked(path) or (path.exists() and not path.is_file()):
         raise StoreError("Storage .gitignore must be a regular file.")
     if path.exists():
-        if path.read_text(encoding="utf-8") != STORAGE_IGNORE:
+        content = path.read_bytes()
+        if content == LEGACY_STORAGE_IGNORE:
+            raise StoreError(LEGACY_STORAGE_HINT)
+        if content != STORAGE_IGNORE.encode("utf-8"):
             raise StoreError("Storage .gitignore differs from the managed rule; inspect it before saving sessions.")
         return
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+    # newline="" keeps LF on Windows so owned_directory recognizes the marker byte for byte.
+    with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
         handle.write(STORAGE_IGNORE)
         handle.flush()
         os.fsync(handle.fileno())

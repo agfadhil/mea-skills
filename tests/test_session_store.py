@@ -78,6 +78,19 @@ class ReadableStorageTests(unittest.TestCase):
         self.assertEqual(len(folders), 8)
         self.assertTrue(all((folder / "session.json").is_file() for folder in folders))
 
+    def test_marker_is_written_with_lf_and_older_crlf_storage_asks_for_clean(self):
+        data = self.create()
+        folder = self.store.session_directory(data, self.base, self.legacy)
+        self.assertEqual((folder / ".gitignore").read_bytes(), self.store.STORAGE_IGNORE.encode("utf-8"))
+        # Earlier Windows releases wrote CRLF; that storage is not migrated.
+        (folder / ".gitignore").write_bytes(self.store.LEGACY_STORAGE_IGNORE)
+        with self.assertRaisesRegex(self.store.StoreError, r"trivy-porter --clean"):
+            self.store.load_sessions(self.legacy, self.root)
+        with self.assertRaisesRegex(self.store.StoreError, r"trivy-porter --clean"):
+            self.create()
+        (folder / ".gitignore").write_bytes(b"# Trivy Porter session storage\n*\nextra\n")
+        self.assertEqual(self.store.load_sessions(self.legacy, self.root), [])
+
     def test_legacy_session_is_read_saved_and_cleaned_in_place(self):
         legacy_data = self.create()
         new_folder = self.store.session_directory(legacy_data, self.base, self.legacy)
