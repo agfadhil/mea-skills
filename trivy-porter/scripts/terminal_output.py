@@ -22,6 +22,26 @@ _STAGES = {
 COUNT_PLACEHOLDER = "Jumlah temuan yang ingin diselesaikan: n"
 
 
+CLEAN_MESSAGE = "wah sudah clean nih.. saatnya main game yak.."
+
+
+def progress_frame(label, tick, elapsed, cells=20, block=3):
+    """One frame of an indeterminate bar: a block of # bouncing across the track."""
+    span = cells - block
+    position = tick % (2 * span)
+    position = position if position <= span else 2 * span - position
+    return f"{label} [{' ' * position}{'#' * block}{' ' * (span - position)}] {int(elapsed)}s"
+
+
+def _is_clean(scan, result):
+    """Zero findings only counts as clean when nothing narrowed what was scanned."""
+    names = {item.get("name") for item in scan.get("explicit_flags") or [] if isinstance(item, dict)}
+    return (result.get("finding_count") == 0 and result.get("exit_code") == 0
+            and not result.get("interrupted") and not result.get("truncated")
+            and scan.get("severity") in (None, "ALL") and "ignore-unfixed" not in names
+            and not (scan.get("inherited_settings") or {}).get("requires_agent_review"))
+
+
 def _clean(value):
     text = str(value)
     text = re.sub(r"\x1b\].*?(?:\x07|\x1b\\|$)", "", text, flags=re.S)
@@ -126,6 +146,9 @@ def render_handoff(data, project, state_base, command, columns=None, is_tty=Fals
         exit_code = result.get("exit_code")
         status = method + (" · exit " + str(exit_code) if exit_code is not None else " · exit belum tersedia")
         add(status, tone if tone == "warning" else "heading")
+        count = result.get("finding_count")
+        if isinstance(count, int) and not isinstance(count, bool):
+            add("Temuan: " + str(count), "heading")
         if scan.get("target"):
             add("Target: " + str(scan["target"]), "muted", preserve_whitespace=True)
     add()
@@ -197,5 +220,6 @@ def render_handoff(data, project, state_base, command, columns=None, is_tty=Fals
     add("fyi lagi:", "label")
     bullet(("Untuk membersihkan state trivy-porter pada direktori ini:", "trivy-porter --clean"))
     add()
+    closing = "\n" + paint(CLEAN_MESSAGE, "label") + "\n" if _is_clean(scan, result) else ""
     return ("\n" + first_panel + "\n\n" + paint("SALIN KE CHAT", "label") + "\n" + command + "\n\n"
-            + panel() + "\n")
+            + panel() + "\n" + closing)

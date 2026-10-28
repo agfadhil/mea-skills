@@ -131,6 +131,8 @@ $trivy-porter analyze SESSION_ID Jumlah temuan yang ingin diselesaikan: n
 
 The panel ends with a reminder that `trivy-porter --clean` clears local Trivy Porter data.
 
+While Trivy (or the local Docker build) runs in an interactive terminal, a moving `###` bar with the elapsed seconds shows that it is still working; it is cleared when the process ends and never printed to pipes or dumb terminals. When the report proves the number of findings, the panel shows `Temuan: N`; the count is stored as `finding_count` in the session result. If it is `0` after a complete, unfiltered scan (exit code 0, no severity filter, no `--ignore-unfixed`, no inherited ignore/config files), the panel also says the project is clean. Trivy's `-` cells mean "not scanned", so a report with nothing scanned shows no count and no clean message.
+
 The completion panel separates the scan process outcome, saved session details, and next step. It adapts to terminal width and uses color when supported, respecting `NO_COLOR`. The complete copyable chat command appears outside the panel without inserted line breaks. A saved report still needs agent assessment of findings and coverage; an exit code alone is not that assessment.
 
 Send the pasted text as a chat message; terminal commands still start with `trivy-porter` without `$`. In another agent, select the installed skill using that agent's interface and keep the same action and arguments. Legacy `/trivy-porter ...` text remains recognized by the skill for compatibility, including older `continue` handoffs for sessions awaiting initial analysis.

@@ -87,6 +87,8 @@ class LocalStateIntegrationTests(unittest.TestCase):
         session = self.only_session()
         commands = [line for line in result.stdout.splitlines() if line.startswith("$trivy-porter ")]
         self.assertEqual(commands, ["$trivy-porter analyze " + session["session_id"] + " Jumlah temuan yang ingin diselesaikan: n"])
+        self.assertIn("Temuan: 1", result.stdout)
+        self.assertEqual(session["scan"]["result"]["finding_count"], 1)
         read = subprocess.run(
             [sys.executable, str(STORE), "read", "--project", str(self.project),
              "--state-dir", str(self.state), "--session", session["session_id"]],

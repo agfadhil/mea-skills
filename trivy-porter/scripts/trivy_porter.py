@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from types import SimpleNamespace
 import uuid
 
@@ -661,7 +662,38 @@ def sanitize_stderr(raw):
     return "\n".join(lines) + ("\n" if lines else "[Tidak ada diagnostic standar tersimpan.]\n")
 
 
-def capture_process(argv, cwd):
+def count_findings(raw, truncated=False):
+    """Findings the raw report proves, or None when it cannot tell (nothing scanned, custom format)."""
+    if truncated:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        results = data.get("Results")
+        if not isinstance(results, list) or not results:
+            return None
+        return sum(len(item[key]) for item in results if isinstance(item, dict)
+                   for key in ("Vulnerabilities", "Misconfigurations", "Secrets", "Licenses")
+                   if isinstance(item.get(key), list))
+    lines = strip_terminal_controls(raw).splitlines()
+    start = next((index for index, line in enumerate(lines) if "Report Summary" in line), None)
+    if start is None:
+        return None
+    rows = []
+    for line in lines[start + 1:]:
+        line = line.strip()
+        if line.startswith("│"):
+            rows.append([cell.strip() for cell in line.strip("│").split("│")])
+        elif line.startswith("└"):
+            break
+    # Trivy marks scanned-and-clean cells "0" and not-scanned cells "-".
+    counts = [int(cell) for row in rows[1:] for cell in row[2:] if cell.isdigit()]
+    return sum(counts) if counts else None
+
+
+def capture_process(argv, cwd, label=None):
     buffers = [bytearray(), bytearray()]
     truncated = [False, False]
     process = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -679,8 +711,24 @@ def capture_process(argv, cwd):
     for reader in readers:
         reader.start()
     interrupted = False
+    animate = bool(label) and sys.stdout.isatty() and os.environ.get("TERM") != "dumb"
+    drawn = 0
     try:
-        process.wait()
+        if animate:
+            started, tick = time.monotonic(), 0
+            columns = shutil.get_terminal_size(fallback=(80, 24)).columns or 80
+            while True:
+                try:
+                    process.wait(timeout=0.12)
+                    break
+                except subprocess.TimeoutExpired:
+                    frame = terminal_output.progress_frame(label, tick, time.monotonic() - started)[:max(1, columns - 1)]
+                    drawn = max(drawn, len(frame))
+                    sys.stdout.write("\r" + frame)
+                    sys.stdout.flush()
+                    tick += 1
+        else:
+            process.wait()
     except KeyboardInterrupt:
         interrupted = True
         process.terminate()
@@ -690,6 +738,9 @@ def capture_process(argv, cwd):
             process.kill()
             process.wait()
     finally:
+        if drawn:
+            sys.stdout.write("\r" + " " * drawn + "\r")
+            sys.stdout.flush()
         for reader in readers:
             reader.join()
     return [buffer.decode("utf-8", errors="replace") for buffer in buffers], process.returncode, interrupted, truncated
@@ -791,7 +842,7 @@ def run_local_build(session):
     print("Menunggu Docker build; diagnostic yang disanitasi disimpan setelah proses berakhir.", flush=True)
     argv = [docker, *build["argv_redacted"][1:]]
     try:
-        raw, exit_code, interrupted, truncated = capture_process(argv, session.root)
+        raw, exit_code, interrupted, truncated = capture_process(argv, session.root, "Membangun image")
     except OSError as exc:
         raw, exit_code, interrupted, truncated = ["", "ERROR " + scrub(str(exc))], 2, False, [False, False]
     directory = session.artifact_directory
@@ -897,7 +948,7 @@ def run_scan(session, trivy, supported_flags=None):
     print("Menunggu Trivy; hasil yang sudah disanitasi ditampilkan setelah proses berakhir.", flush=True)
     destination = output_file(scan, session.root)
     before = output_identity(destination)
-    raw, exit_code, interrupted, truncated = capture_process(argv, session.root)
+    raw, exit_code, interrupted, truncated = capture_process(argv, session.root, "Memindai")
     source = "stdout"
     if destination is not None:
         if output_identity(destination) != before and destination.is_file():
@@ -931,7 +982,8 @@ def run_scan(session, trivy, supported_flags=None):
     scan["last_scan_exit_code"] = exit_code
     scan["result"] = {"stdout_path": str(stdout_path), "stderr_path": str(stderr_path),
                       "exit_code": exit_code, "interrupted": interrupted, "truncated": any(truncated),
-                      "format": output_format, "source": source, "sanitized": True, "run_id": run_id}
+                      "format": output_format, "source": source, "sanitized": True, "run_id": run_id,
+                      "finding_count": count_findings(raw[0], truncated[0])}
     session.data["stage"] = "scan_failed" if local_image and not valid_json else "awaiting_analysis"
     session.data["pending_question"] = "scan" if local_image and not valid_json else None
     session.save()
