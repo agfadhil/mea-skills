@@ -86,7 +86,7 @@ class LocalStateIntegrationTests(unittest.TestCase):
         result = self.run_cli("\n\n\n")
         session = self.only_session()
         commands = [line for line in result.stdout.splitlines() if line.startswith("$trivy-porter ")]
-        self.assertEqual(commands, ["$trivy-porter analyze " + session["session_id"] + " jumlah temuan: n"])
+        self.assertEqual(commands, ["$trivy-porter analyze " + session["session_id"] + " Jumlah temuan yang ingin diselesaikan: n"])
         read = subprocess.run(
             [sys.executable, str(STORE), "read", "--project", str(self.project),
              "--state-dir", str(self.state), "--session", session["session_id"]],
@@ -105,7 +105,7 @@ class LocalStateIntegrationTests(unittest.TestCase):
         session = self.only_session(state=state)
         commands = [line for line in result.stdout.splitlines() if line.startswith("$trivy-porter ")]
         self.assertEqual(len(commands), 1)
-        self.assertEqual(scan_tests.shlex.split(commands[0].removesuffix(" jumlah temuan: n")),
+        self.assertEqual(scan_tests.shlex.split(commands[0].removesuffix(" Jumlah temuan yang ingin diselesaikan: n")),
                          ["$trivy-porter", "analyze", session["session_id"], "--project",
                           str(self.project.resolve())])
 

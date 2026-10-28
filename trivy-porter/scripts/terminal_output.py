@@ -18,6 +18,10 @@ _STAGES = {
 }
 
 
+# Appended to the analyze command; the agent reads the number after the colon.
+COUNT_PLACEHOLDER = "Jumlah temuan yang ingin diselesaikan: n"
+
+
 def _clean(value):
     text = str(value)
     text = re.sub(r"\x1b\].*?(?:\x07|\x1b\\|$)", "", text, flags=re.S)
@@ -137,31 +141,61 @@ def render_handoff(data, project, state_base, command, columns=None, is_tty=Fals
     add()
     rows.append((None, None))
     add()
-    add("LANJUT DI CHAT AGENT", "label")
-    add("Buka chat pada proyek ini, lalu salin perintah di bawah.", "heading")
-    if data.get("stage") == "awaiting_analysis":
+    analysis = data.get("stage") == "awaiting_analysis"
+    if analysis:
+        add("fyi:", "label")
         add("Exit code saja tidak membuktikan nol temuan atau cakupan scan lengkap.", "muted")
         if result.get("truncated") and result.get("interrupted"):
             add("Tangkapan output juga terbatas.", "warning")
-        add("Ganti n dengan jumlah temuan yang ingin diperbaiki; 0 = semua item langsung dikerjakan. "
-            "Hapus \"jumlah temuan: n\" jika hanya ingin analisis.", "muted")
-    add("Tambahkan --project PATH jika chat agent tidak dibuka di folder proyek yang discan.", "muted")
-    add("Kirim secara manual; terminal tidak mengirim pesan ke chat.", "muted")
+        add()
+    add("LANJUT DI CHAT AGENT", "label")
+    add("Buka chat pada proyek ini, lalu salin perintah di bawah.", "heading")
     add()
 
     def border(left, right):
         return paint(left + "─" * (width - 2) + right, "border")
 
-    lines = [border("╭", "╮")] if boxed else []
-    for text, row_tone in rows:
-        if text is None:
-            lines.append(border("├", "┤") if boxed else paint("─" * width, "border"))
-        elif boxed:
-            lines.append(paint("│", "border") + "  " + paint(text, row_tone)
-                         + " " * max(0, content_width - _width(text)) + "  " + paint("│", "border"))
-        else:
-            lines.append(" " * outer_indent + paint(text, row_tone))
-    if boxed:
-        lines.append(border("╰", "╯"))
-    return ("\n" + "\n".join(lines) + "\n\n" + paint("SALIN KE CHAT", "label") + "\n" + command + "\n\n"
-            + paint("Bersihkan data trivy-porter: trivy-porter --clean", "muted") + "\n")
+    def panel():
+        lines = [border("╭", "╮")] if boxed else []
+        for text, row_tone in rows:
+            if text is None:
+                lines.append(border("├", "┤") if boxed else paint("─" * width, "border"))
+            elif boxed:
+                lines.append(paint("│", "border") + "  " + paint(text, row_tone)
+                             + " " * max(0, content_width - _width(text)) + "  " + paint("│", "border"))
+            else:
+                lines.append(" " * outer_indent + paint(text, row_tone))
+        if boxed:
+            lines.append(border("╰", "╯"))
+        return "\n".join(lines)
+
+    def bullet(*item):
+        # Continuation lines align under the first one. A (text, command) line keeps
+        # its trailing command whole so it stays copyable.
+        limit = max(1, content_width - 2)
+        for index, text in enumerate(item):
+            text, command_tail = text if isinstance(text, tuple) else (text, "")
+            wrapped = _wrap(text, limit)
+            if command_tail:
+                if _width(wrapped[-1]) + 1 + _width(command_tail) <= limit:
+                    wrapped[-1] += " " + command_tail
+                else:
+                    wrapped.append(command_tail)
+            for position, line in enumerate(wrapped):
+                rows.append((("• " if index == position == 0 else "  ") + line, "muted"))
+
+    first_panel = panel()
+    # The copyable command sits between two panels so it is never wrapped or bordered.
+    rows.clear()
+    add()
+    if analysis:
+        bullet("Ganti n dengan jumlah temuan yang ingin diperbaiki; 0 = semua item langsung dikerjakan.",
+               'Hapus "' + COUNT_PLACEHOLDER + '" jika hanya ingin analisis.')
+    bullet("Tambahkan --project PATH jika chat agent tidak dibuka di folder proyek yang discan.")
+    bullet("Kirim secara manual; terminal tidak mengirim pesan ke chat.")
+    add()
+    add("fyi lagi:", "label")
+    bullet(("Untuk membersihkan state trivy-porter pada direktori ini:", "trivy-porter --clean"))
+    add()
+    return ("\n" + first_panel + "\n\n" + paint("SALIN KE CHAT", "label") + "\n" + command + "\n\n"
+            + panel() + "\n")

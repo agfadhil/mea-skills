@@ -192,7 +192,7 @@ class Session:
         # The skill mention is chat syntax; quote only the arguments as needed.
         command = "$trivy-porter " + command_display([action, self.data["session_id"], *self.location_args()])
         if action == "analyze":
-            command += " jumlah temuan: n"
+            command += " " + terminal_output.COUNT_PLACEHOLDER
         print(terminal_output.render_handoff(
             self.data, self.root, self.artifact_directory, command,
             columns=shutil.get_terminal_size(fallback=(80, 24)).columns,

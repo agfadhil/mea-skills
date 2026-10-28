@@ -123,10 +123,10 @@ Here `app` is the project directory name, normalized to a valid lowercase Docker
 
 Add `.trivy-porter/` to the project's `.dockerignore` when session storage is inside the build context, so reports and metadata are not copied into the image. The CLI does not edit that file automatically.
 
-After the scan, open Codex in the application project and paste the complete handoff printed by the CLI. Replace `n` with the number of findings to fix (`0` = all items at once), or drop `jumlah temuan: n` for analysis only. `--project` and `--state-dir` appear only when they differ from the defaults (terminal cwd and `<cwd>/.trivy-porter`); add `--project /path/to/app` yourself if the chat is opened in another folder. The `$trivy-porter` prefix explicitly invokes the installed skill in Codex:
+After the scan, open Codex in the application project and paste the complete handoff printed by the CLI. Replace `n` with the number of findings to fix (`0` = all items at once), or drop `Jumlah temuan yang ingin diselesaikan: n` for analysis only. `--project` and `--state-dir` appear only when they differ from the defaults (terminal cwd and `<cwd>/.trivy-porter`); add `--project /path/to/app` yourself if the chat is opened in another folder. The `$trivy-porter` prefix explicitly invokes the installed skill in Codex:
 
 ```text
-$trivy-porter analyze SESSION_ID jumlah temuan: n
+$trivy-porter analyze SESSION_ID Jumlah temuan yang ingin diselesaikan: n
 ```
 
 The panel ends with a reminder that `trivy-porter --clean` clears local Trivy Porter data.

@@ -168,7 +168,7 @@ class TerminalIntegrationTests(unittest.TestCase):
     def assert_chat_handoff(self, output, action, session_id):
         # Fixtures run from the project, so only the custom storage root is printed.
         arguments = [action, session_id, "--state-dir", str(self.state.resolve())]
-        suffix = " jumlah temuan: n" if action == "analyze" else ""
+        suffix = " Jumlah temuan yang ingin diselesaikan: n" if action == "analyze" else ""
         expected = "$trivy-porter " + (subprocess.list2cmdline(arguments) if os.name == "nt" else shlex.join(arguments))
         commands = [line for line in output.splitlines() if line.startswith("$trivy-porter ")]
         self.assertEqual(commands, [expected + suffix])
