@@ -15,6 +15,10 @@ from unittest import mock
 import test_trivy_porter as fixtures
 
 
+# Windows hosts build with Docker's default platform; other hosts pin linux/amd64.
+BUILD_PLATFORM = [] if os.name == "nt" else ["--platform=linux/amd64"]
+
+
 class LocalImageWorkflowTests(unittest.TestCase):
     fixture_setup = fixtures.TerminalIntegrationTests.setUp
     run_cli = fixtures.TerminalIntegrationTests.run_cli
@@ -76,7 +80,7 @@ class LocalImageWorkflowTests(unittest.TestCase):
     def test_image_selection_builds_local_amd64_then_scans_only_docker_as_json(self):
         result = self.run_cli("2\n\n\n")
         self.assertEqual(self.builds(), [{
-            "args": ["build", "--platform=linux/amd64", "-t", "project-with-spaces:scan", "."],
+            "args": ["build", *BUILD_PLATFORM, "-t", "project-with-spaces:scan", "."],
             "cwd": str(self.project.resolve()),
         }])
         scan_call = self.calls(scans_only=True)
@@ -92,7 +96,7 @@ class LocalImageWorkflowTests(unittest.TestCase):
         data = self.only_session()
         scan = data["scan"]
         self.assertEqual(data["stage"], "awaiting_analysis")
-        self.assertEqual(scan["build"]["platform"], "linux/amd64")
+        self.assertEqual(scan["build"]["platform"], None if os.name == "nt" else "linux/amd64")
         self.assertEqual(scan["build"]["context"], str(self.project.resolve()))
         self.assertEqual(scan["build"]["result"]["exit_code"], 0)
         report = Path(scan["result"]["stdout_path"])
@@ -104,6 +108,15 @@ class LocalImageWorkflowTests(unittest.TestCase):
         self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["Results"][0]
                          ["Vulnerabilities"][0]["VulnerabilityID"], "CVE-2026-12345")
         self.assert_chat_handoff(result.stdout, "analyze", data["session_id"])
+
+    def test_build_pins_amd64_except_on_windows(self):
+        posix, windows = {}, {}
+        self.cli.configure_local_image(posix, "app", windows=False)
+        self.cli.configure_local_image(windows, "app", windows=True)
+        self.assertEqual(posix["build"]["platform"], "linux/amd64")
+        self.assertEqual(posix["build"]["argv_redacted"], ["docker", "build", "--platform=linux/amd64", "-t", "app:scan", "."])
+        self.assertIsNone(windows["build"]["platform"])
+        self.assertEqual(windows["build"]["argv_redacted"], ["docker", "build", "-t", "app:scan", "."])
 
     def test_local_image_preserves_scanner_and_severity_choices(self):
         self.run_cli("2\n--scanners\nvuln,secret\n\n3\n")
@@ -259,7 +272,7 @@ class LocalImageWorkflowTests(unittest.TestCase):
         project.mkdir()
         self.run_cli("2\n\n\n", project=project)
         self.assertEqual(self.builds()[0]["args"], [
-            "build", "--platform=linux/amd64", "-t", "my.app_service:scan", ".",
+            "build", *BUILD_PLATFORM, "-t", "my.app_service:scan", ".",
         ])
         self.assertEqual(self.calls(scans_only=True)[0]["args"][-1], "my.app_service:scan")
 

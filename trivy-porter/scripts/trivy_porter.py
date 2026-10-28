@@ -301,14 +301,16 @@ def choose_method():
     return "fs" if answer == "1" else "image"
 
 
-def configure_local_image(scan, project):
+def configure_local_image(scan, project, windows=None):
     name = re.sub(r"[^a-z0-9._-]+", "-", Path(project).name.lower()).strip("._-")
     name = re.sub(r"[._-]+", lambda match: match[0] if re.fullmatch(r"\.|__?|-+", match[0]) else "-", name)
     name = name[:200].rstrip("._-") or "project"
     tag = name + ":scan"
+    # Windows builds with Docker's default platform; other hosts keep linux/amd64 pinned.
+    platform = None if (os.name == "nt" if windows is None else windows) else "linux/amd64"
     scan.update(target=tag, target_kind="local_build")
-    scan["build"] = {"context": project, "platform": "linux/amd64", "tag": tag,
-                     "argv_redacted": ["docker", "build", "--platform=linux/amd64", "-t", tag, "."],
+    scan["build"] = {"context": project, "platform": platform, "tag": tag,
+                     "argv_redacted": ["docker", "build", *([f"--platform={platform}"] if platform else []), "-t", tag, "."],
                      "status": "pending"}
 
 
@@ -403,7 +405,8 @@ def configure(session, trivy):
     if local_image:
         if not {"image-src", "format"}.issubset(flags):
             raise CliError("Trivy ini harus mendukung --image-src dan --format untuk scan Docker lokal dalam JSON.")
-        print(f"\nImage lokal: {scan['target']} · platform linux/amd64 · report JSON")
+        platform = scan.get("build", {}).get("platform") or "default Docker"
+        print(f"\nImage lokal: {scan['target']} · platform {platform} · report JSON")
         if any(item["name"] in LOCAL_IMAGE_FLAGS for item in scan["explicit_flags"]):
             raise CliError("Sumber Docker lokal dan format JSON tidak dapat ditimpa oleh flags sesi.")
     for item in scan["explicit_flags"]:

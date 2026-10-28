@@ -119,6 +119,8 @@ docker build --platform=linux/amd64 -t app:scan .
 trivy image --image-src docker --format json app:scan
 ```
 
+On Windows the build omits `--platform` and uses Docker's default platform (`docker build -t app:scan .`). Sessions keep the build command they were created with, so retries and rebuilds repeat it unchanged.
+
 Here `app` is the project directory name, normalized to a valid lowercase Docker image name. With `--project`, both commands run in that project. Image source and JSON format are fixed; other supported scanner/filter choices and severity remain available. The scan runs only after the build succeeds. A failed/interrupted build is saved for an explicit retry through terminal `continue`, without scanning an older image. The sanitized JSON is saved as `report.json`; `trivy-porter -d` still exports the portable upload report. Existing saved image-reference/archive sessions can still be resumed with their original source.
 
 Add `.trivy-porter/` to the project's `.dockerignore` when session storage is inside the build context, so reports and metadata are not copied into the image. The CLI does not edit that file automatically.
