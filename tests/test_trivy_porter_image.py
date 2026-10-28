@@ -109,7 +109,7 @@ class LocalImageWorkflowTests(unittest.TestCase):
         report = Path(scan["result"]["stdout_path"])
         self.assertEqual(report.name, "report.json")
         self.assertEqual(report.parent.parent, self.state.resolve())
-        self.assertRegex(report.parent.name, r"^\d{8}-\d{4}-image(?:-\d+)?$")
+        self.assertRegex(report.parent.name, r"^\d{8}-\d{6}-image(?:-\d+)?$")
         self.assertNotIn(data["session_id"], report.parent.name)
         self.assertTrue((report.parent / "session.json").is_file())
         self.assertEqual(json.loads(report.read_text(encoding="utf-8"))["Results"][0]

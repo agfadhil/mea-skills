@@ -37,24 +37,30 @@ class ReadableStorageTests(unittest.TestCase):
         return self.store.create_data({"stage": "complete", "scan": {"method": action}},
                                       self.root, self.base, self.legacy)
 
-    def test_folder_uses_local_minute_and_action_with_collision_suffix(self):
+    def test_folder_uses_local_second_and_action_with_collision_suffix(self):
         class FakeClock:
             @staticmethod
             def now(*_args):
                 from datetime import datetime
-                return datetime(2026, 10, 23, 14, 30)
+                return datetime(2026, 10, 23, 14, 30, 5)
 
         # The clock only controls the folder label, while timestamp metadata
         # remains valid ISO text from the ordinary timestamp helper.
         with patch.object(self.store, "datetime", FakeClock), patch.object(self.store, "timestamp", return_value="2026-10-23T07:30:00Z"):
             first, second = self.create(), self.create()
             third = self.create("fs")
-        self.assertEqual(self.store.session_directory(first, self.base, self.legacy).name, "20261023-1430-image")
-        self.assertEqual(self.store.session_directory(second, self.base, self.legacy).name, "20261023-1430-image-2")
-        self.assertEqual(self.store.session_directory(third, self.base, self.legacy).name, "20261023-1430-fs")
+        self.assertEqual(self.store.session_directory(first, self.base, self.legacy).name, "20261023-143005-image")
+        self.assertEqual(self.store.session_directory(second, self.base, self.legacy).name, "20261023-143005-image-2")
+        self.assertEqual(self.store.session_directory(third, self.base, self.legacy).name, "20261023-143005-fs")
         self.assertNotEqual(first["session_id"], second["session_id"])
         self.assertFalse(self.legacy.exists())
         self.assertEqual(self.store.read(SimpleNamespace(session=first["session_id"]), self.root, self.legacy), first)
+
+    def test_minute_only_folders_from_earlier_releases_stay_readable(self):
+        data = self.create()
+        folder = self.store.session_directory(data, self.base, self.legacy)
+        older = folder.rename(self.base / "20261023-1430-image")
+        self.assertEqual(self.store.session_directory(data, self.base, self.legacy), older)
 
     def test_shared_root_keeps_projects_isolated_and_does_not_ignore_application(self):
         first = self.create()

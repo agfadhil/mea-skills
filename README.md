@@ -222,11 +222,11 @@ cd /path/to/app
 trivy-porter
 ```
 
-The storage root is `/path/to/app/.trivy-porter/`. New sessions use local creation time and scan action in the folder name: `YYYYMMDD-HHMM-image` or `YYYYMMDD-HHMM-fs`. If that name already exists, the next folder uses `-2`, `-3`, and so on. The internal session ID stays in `session.json` for chat continuation; it is not the folder name. For example:
+The storage root is `/path/to/app/.trivy-porter/`. New sessions use local creation time and scan action in the folder name: `YYYYMMDD-HHMMSS-image` or `YYYYMMDD-HHMMSS-fs`. If that name already exists, the next folder uses `-2`, `-3`, and so on. The internal session ID stays in `session.json` for chat continuation; it is not the folder name. For example:
 
 ```text
 .trivy-porter/
-  20261023-1430-image/
+  20261023-143005-image/
     session.json
     report.json
     scan.stderr.txt

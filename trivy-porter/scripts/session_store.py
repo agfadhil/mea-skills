@@ -29,7 +29,8 @@ SCHEMA_VERSION = 1
 MANAGED = {"schema_version", "project_root", "session_id", "revision", "created_at", "updated_at"}
 SESSION_ID = re.compile(r"[0-9a-f]{32}\Z")
 PARTITION_ID = re.compile(r"[0-9a-f]{64}\Z")
-RUN_DIRECTORY = re.compile(r"[0-9]{8}-[0-9]{4}-(?:fs|image|scan)(?:-[1-9][0-9]*)?\Z")
+# New folders use HHMMSS; HHMM folders from earlier releases stay readable.
+RUN_DIRECTORY = re.compile(r"[0-9]{8}-[0-9]{4}(?:[0-9]{2})?-(?:fs|image|scan)(?:-[1-9][0-9]*)?\Z")
 STORAGE_IGNORE = "# Trivy Porter session storage\n*\n"
 # Earlier Windows releases wrote the marker in text mode, translating it to CRLF; that storage is not migrated.
 LEGACY_STORAGE_IGNORE = STORAGE_IGNORE.replace("\n", "\r\n").encode("utf-8")
@@ -362,7 +363,7 @@ def create_data(payload, project_root, base, directory):
             session_id = uuid.uuid4().hex
         scan = data.get("scan") if isinstance(data.get("scan"), dict) else {}
         action = scan.get("method") if scan.get("method") in {"fs", "image"} else "scan"
-        label = datetime.now().astimezone().strftime("%Y%m%d-%H%M-") + action
+        label = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-") + action
         number = 1
         while True:
             folder = base / (label if number == 1 else label + "-" + str(number))

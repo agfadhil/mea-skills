@@ -248,7 +248,7 @@ def manage_storage(args):
     print(f"Project: {root}")
     print(f"Root penyimpanan: {base}")
     sessions = store.load_sessions(directory, root)
-    print("Format folder sesi: YYYYMMDD-HHMM-action")
+    print("Format folder sesi: YYYYMMDD-HHMMSS-action")
     if args.action == "storage":
         print("Status: " + ("sudah ada" if sessions else "belum dibuat"))
         for data in sessions:
