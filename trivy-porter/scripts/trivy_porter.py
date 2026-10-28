@@ -809,6 +809,17 @@ def state_exclusions(session):
     return paths
 
 
+def image_id(docker, tag, cwd, strict=False):
+    """Return the local image ID for tag; a missing image is None unless strict."""
+    try:
+        identity = probe([docker, "image", "inspect", "--format", "{{.Id}}", tag], cwd).strip()
+    except CliError:
+        if strict:
+            raise
+        return None
+    return identity if re.fullmatch(r"sha256:[0-9a-f]{64}", identity) else None
+
+
 def run_local_build(session):
     """Build the selected local source; a failed build never scans an old tag."""
     scan = session.data["scan"]
@@ -841,6 +852,15 @@ def run_local_build(session):
         print("\n" + build["error"], flush=True)
         print(f"Ulangi dari terminal: {session.terminal_command()}")
         return 2
+    # An image already tagged locally is scanned as is; remove it to force a fresh build.
+    existing = image_id(docker, build["tag"], session.root)
+    if existing:
+        build.update(status="existing", image_id=existing, finished_at=store.timestamp())
+        session.data["pending_question"] = "scan"
+        session.save()
+        print(f"\nImage lokal {build['tag']} sudah ada ({existing[:19]}…); Docker build dilewati, langsung scan.", flush=True)
+        print(f"Untuk build ulang dari source terbaru, hapus dulu: docker image rm {build['tag']}", flush=True)
+        return None
     print(f"\nMembangun image lokal: {command_display(build['argv_redacted'])}", flush=True)
     print("Menunggu Docker build; diagnostic yang disanitasi disimpan setelah proses berakhir.", flush=True)
     argv = [docker, *build["argv_redacted"][1:]]
@@ -869,8 +889,8 @@ def run_local_build(session):
         return 130 if interrupted else exit_code if exit_code > 0 else 1
     build["status"] = "succeeded"
     try:
-        identity = probe([docker, "image", "inspect", "--format", "{{.Id}}", build["tag"]], session.root).strip()
-        if re.fullmatch(r"sha256:[0-9a-f]{64}", identity):
+        identity = image_id(docker, build["tag"], session.root, strict=True)
+        if identity:
             build["image_id"] = identity
     except CliError as exc:
         build["identity_error"] = scrub(str(exc))

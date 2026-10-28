@@ -58,10 +58,17 @@ class LocalImageWorkflowTests(unittest.TestCase):
                 out.write(json.dumps(call) + '\\n')
             with Path(os.environ['FAKE_WORKFLOW_EVENTS']).open('a', encoding='utf-8') as out:
                 out.write(json.dumps(dict(call, tool='docker')) + '\\n')
+            built = Path(os.environ['FAKE_DOCKER_CALLS'] + '.built')
             if args and args[0] == 'build':
                 print('Fixture Docker build')
                 print('INFO fixture build log', file=sys.stderr)
-                sys.exit(int(os.environ.get('FAKE_DOCKER_EXIT', '0')))
+                code = int(os.environ.get('FAKE_DOCKER_EXIT', '0'))
+                if code == 0:
+                    built.touch()
+                sys.exit(code)
+            if args[:2] == ['image', 'inspect'] and not (built.exists() or os.environ.get('FAKE_DOCKER_IMAGE_EXISTS')):
+                print('Error: No such image: ' + args[-1], file=sys.stderr)
+                sys.exit(1)
             print('sha256:' + 'b' * 64)
             """), encoding="utf-8")
         self.docker.chmod(self.docker.stat().st_mode | stat.S_IXUSR)
@@ -148,6 +155,17 @@ class LocalImageWorkflowTests(unittest.TestCase):
         self.assertEqual(len(self.builds()), 2)
         self.assertEqual(len(self.calls(scans_only=True)), 1)
         self.assertEqual(self.only_session()["stage"], "awaiting_analysis")
+
+    def test_existing_local_image_skips_build_and_scans_it(self):
+        self.env["FAKE_DOCKER_IMAGE_EXISTS"] = "1"
+        result = self.run_cli("2\n\n\n")
+        self.assertEqual(self.builds(), [])
+        self.assertIn("sudah ada", result.stdout)
+        self.assertEqual(self.calls(scans_only=True)[0]["args"][-1], "project-with-spaces:scan")
+        data = self.only_session()
+        self.assertEqual(data["stage"], "awaiting_analysis")
+        self.assertEqual(data["scan"]["build"]["status"], "existing")
+        self.assertEqual(data["scan"]["build"]["image_id"], "sha256:" + "b" * 64)
 
     def test_missing_docker_does_not_fall_back_to_remote_scan(self):
         self.docker.unlink()
