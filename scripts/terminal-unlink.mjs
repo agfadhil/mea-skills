@@ -27,7 +27,7 @@ export async function runTerminalUnlink({
     print('MEA Skills — Terminal Unlink');
     print(`OS: ${osLabel(platform)}`);
     print();
-    print(`Perintah ini menghapus command ${windows ? `${commandName}.cmd` : commandName} yang dibuat oleh mea-skills:terminal-link.`);
+    print(`Perintah ini menghapus command ${windows ? `${commandName}.cmd dan ${commandName}` : commandName} yang dibuat oleh mea-skills:terminal-link.`);
     print('Script di repository ini dan folder tujuan tidak ikut dihapus.');
 
     const fallback = getDefaultLinkDirectory({ platform, homeDirectory });
@@ -44,15 +44,17 @@ export async function runTerminalUnlink({
       state = inspected;
     }
 
+    const removable = state.files.filter((file) => !['missing', 'foreign'].includes(file.existing));
+    const foreign = state.files.filter((file) => file.existing === 'foreign');
     if (state.existing === 'missing') {
       print();
-      print(`Tidak ada ${path.basename(state.linkPath)} di ${state.directory}. Tidak ada yang perlu dihapus.`);
+      print(`Tidak ada ${state.files.map((file) => path.basename(file.path)).join(' atau ')} di ${state.directory}. Tidak ada yang perlu dihapus.`);
       npmHint();
       return { cancelled: false, changed: false };
     }
-    if (state.existing === 'foreign') {
+    if (!removable.length) {
       print();
-      print(`${state.linkPath} bukan dibuat oleh mea-skills, jadi tidak dihapus.`);
+      for (const file of foreign) print(`${file.path} bukan dibuat oleh mea-skills, jadi tidak dihapus.`);
       print('Periksa file tersebut dan hapus secara manual jika memang tidak dipakai.');
       return { cancelled: false, changed: false };
     }
@@ -64,20 +66,25 @@ export async function runTerminalUnlink({
     }
 
     print();
-    if (state.existing === 'other-link') {
-      print(`${state.linkPath} menunjuk ke ${state.currentTarget},`);
+    for (const file of foreign) print(`${file.path} bukan dibuat oleh mea-skills, jadi tidak dihapus.`);
+    const otherLink = removable.find((file) => file.existing === 'other-link');
+    const targets = removable.map((file) => file.path).join(' dan ');
+    if (otherLink) {
+      print(`${otherLink.path} menunjuk ke ${otherLink.currentTarget},`);
       print('bukan ke repository ini (mungkin dari lokasi repository lama).');
       if (!(await confirm('Tetap hapus symlink tersebut?', false))) throw new Cancelled();
     } else {
-      print(state.existing === 'outdated'
-        ? `${state.linkPath} dibuat oleh mea-skills, tetapi menunjuk ke lokasi script lain.`
-        : `${state.linkPath} menunjuk ke script di repository ini.`);
-      if (!(await confirm(`Hapus ${state.linkPath}?`, true))) throw new Cancelled();
+      for (const file of removable) {
+        print(file.existing === 'outdated'
+          ? `${file.path} dibuat oleh mea-skills, tetapi menunjuk ke lokasi script lain.`
+          : `${file.path} menunjuk ke script di repository ini.`);
+      }
+      if (!(await confirm(`Hapus ${targets}?`, true))) throw new Cancelled();
     }
 
-    await fs.rm(state.linkPath);
+    for (const file of removable) await fs.rm(file.path);
     print();
-    print(`✓ ${state.linkPath} sudah dihapus.`);
+    print(`✓ ${targets} sudah dihapus.`);
     const remaining = await findShadowingCommand(commandName, undefined, { platform, env: environment });
     if (remaining) {
       print();

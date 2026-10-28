@@ -154,9 +154,9 @@ To expose `trivy-porter` as a command from any project, run one of these once in
 | You use | Command | Result |
 | --- | --- | --- |
 | One Node.js version | `npm link` | Links the command into the active Node.js version's global `bin`. After switching versions with nvm, mise, or fnm, the command is not found until you run `npm link` again in that version. |
-| Several Node.js versions | `pnpm run mea-skills:terminal-link` | Creates a symlink at `~/.local/bin/trivy-porter` (a `trivy-porter.cmd` file on Windows) pointing to this repository, so the command works with any active Node.js version. |
+| Several Node.js versions | `pnpm run mea-skills:terminal-link` | Creates a symlink at `~/.local/bin/trivy-porter` (on Windows, a `trivy-porter.cmd` file for CMD/PowerShell plus an extensionless `trivy-porter` shell script for Git Bash) pointing to this repository, so the command works with any active Node.js version. |
 
-`mea-skills:terminal-link` confirms each step before changing anything: creating the `.cmd` file on Windows, choosing the destination folder, using a folder that is not on `PATH`, creating a missing folder, overwriting an existing `trivy-porter`, and adding execute permission to the script. It never runs `sudo` or requests Administrator rights; when a folder is not writable, it asks for another one. It also warns when another `trivy-porter` earlier on `PATH` (for example an old `npm link` or a mise shim) would take precedence.
+`mea-skills:terminal-link` confirms each step before changing anything: creating the `.cmd` and Git Bash shim files on Windows, choosing the destination folder, using a folder that is not on `PATH`, creating a missing folder, overwriting an existing `trivy-porter`, and adding execute permission to the script. It never runs `sudo` or requests Administrator rights; when a folder is not writable, it asks for another one. It also warns when another `trivy-porter` earlier on `PATH` (for example an old `npm link` or a mise shim) would take precedence.
 
 When switching methods, remove the old link first so it does not shadow the new one:
 
@@ -165,7 +165,7 @@ When switching methods, remove the old link first so it does not shadow the new 
 | `npm link` | `npm unlink -g mea-skills` in every Node.js version where it was linked (with mise: `mise exec node@<version> -- npm unlink -g mea-skills`, then `mise reshim`) |
 | `mea-skills:terminal-link` | `pnpm run mea-skills:terminal-unlink` from this repository |
 
-`mea-skills:terminal-unlink` asks for the link folder (default `~/.local/bin`) and removes only the `trivy-porter` symlink or `trivy-porter.cmd` file that `terminal-link` created, after confirmation. A symlink pointing to another location (for example an old repository path) needs explicit approval, and files mea-skills did not create are never removed. The script, the folder, and any `npm link` stay untouched; it reports any other `trivy-porter` still on `PATH`.
+`mea-skills:terminal-unlink` asks for the link folder (default `~/.local/bin`) and removes only the `trivy-porter` symlink or the `trivy-porter.cmd` and `trivy-porter` shim files that `terminal-link` created, after confirmation. A symlink pointing to another location (for example an old repository path) needs explicit approval, and files mea-skills did not create are never removed. The script, the folder, and any `npm link` stay untouched; it reports any other `trivy-porter` still on `PATH`.
 
 Then, in your application directory:
 

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { test } from 'node:test';
-import { isOnPath, renderCmdShim, runTerminalLink } from '../scripts/terminal-link.mjs';
+import { isOnPath, renderCmdShim, renderShShim, runTerminalLink } from '../scripts/terminal-link.mjs';
 
 async function fixture(t, mode = 0o755) {
   const directory = await fs.mkdtemp(path.join(tmpdir(), 'mea-terminal-link-'));
@@ -119,7 +119,22 @@ test('Windows asks before creating a .cmd file and declining changes nothing', a
 test('Windows helpers produce a .cmd shim and match PATH case-insensitively', () => {
   assert.equal(renderCmdShim('C:\\repo\\scripts\\trivy-porter.mjs'),
     '@echo off\r\nrem Dibuat oleh mea-skills:terminal-link\r\nnode "C:\\repo\\scripts\\trivy-porter.mjs" %*\r\n');
+  assert.equal(renderShShim("C:\\it's\\scripts\\trivy-porter.mjs"),
+    "#!/bin/sh\n# Dibuat oleh mea-skills:terminal-link\nexec node 'C:/it'\\''s/scripts/trivy-porter.mjs' \"$@\"\n");
   const env = { Path: 'C:\\Windows;C:\\Users\\Fixture\\.local\\bin\\' };
   assert.equal(isOnPath('c:\\users\\fixture\\.local\\bin', { platform: 'win32', env }), true);
   assert.equal(isOnPath('C:\\Users\\Fixture\\bin', { platform: 'win32', env }), false);
+});
+
+test('Windows adds the Git Bash shim next to an existing .cmd install', { skip: process.platform !== 'win32' }, async t => {
+  const setup = await fixture(t);
+  await fs.mkdir(setup.bin, { recursive: true });
+  await fs.writeFile(`${setup.linkPath}.cmd`, renderCmdShim(setup.script));
+  const { result, text } = await answerLink(setup, ['', '', ''], { platform: 'win32', environment: { Path: setup.bin } });
+  assert.equal(result.changed, true);
+  assert.doesNotMatch(text, /trivy-porter\.cmd \(timpa/u);
+  assert.equal(await fs.readFile(setup.linkPath, 'utf8'), renderShShim(setup.script));
+
+  const rerun = await answerLink(setup, ['', ''], { platform: 'win32', environment: { Path: setup.bin } });
+  assert.equal(rerun.result.changed, false);
 });

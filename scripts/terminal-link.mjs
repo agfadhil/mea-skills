@@ -9,7 +9,7 @@ import { resolveDestination } from './skill-installer.mjs';
 
 export const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const commandName = 'trivy-porter';
-const shimMarker = 'rem Dibuat oleh mea-skills:terminal-link';
+const shimMarker = 'Dibuat oleh mea-skills:terminal-link';
 export const pathApi = (platform) => platform === 'win32' ? path.win32 : path.posix;
 export const osLabel = (platform) => ({ win32: 'Windows', darwin: 'macOS', linux: 'Linux' }[platform] || platform);
 
@@ -43,7 +43,13 @@ export function getDefaultLinkDirectory({ platform = process.platform, homeDirec
 }
 
 export function renderCmdShim(script) {
-  return ['@echo off', shimMarker, `node "${script}" %*`, ''].join('\r\n');
+  return ['@echo off', `rem ${shimMarker}`, `node "${script}" %*`, ''].join('\r\n');
+}
+
+// Git Bash ignores PATHEXT, so it needs an extensionless script next to the .cmd (MSYS runs files starting with `#!`).
+export function renderShShim(script) {
+  const quoted = `'${script.replaceAll('\\', '/').replaceAll("'", "'\\''")}'`;
+  return ['#!/bin/sh', `# ${shimMarker}`, `exec node ${quoted} "$@"`, ''].join('\n');
 }
 
 function envValue(env, name, platform) {
@@ -98,8 +104,10 @@ async function canAccess(filename, mode) {
 export async function inspectLink({ directory, script, platform = process.platform }) {
   const paths = pathApi(platform);
   const windows = platform === 'win32';
-  const linkPath = paths.join(directory, windows ? `${commandName}.cmd` : commandName);
-  const state = { directory, script, linkPath, kind: windows ? 'cmd' : 'symlink', existing: 'missing' };
+  const files = (windows
+    ? [{ name: `${commandName}.cmd`, render: renderCmdShim }, { name: commandName, render: renderShShim }]
+    : [{ name: commandName }]).map(({ name, render }) => ({ path: paths.join(directory, name), render, existing: 'missing' }));
+  const state = { directory, script, linkPath: files[0].path, files, existing: 'missing' };
 
   const folder = await lstatOrNull(directory);
   if (folder && !folder.isDirectory()) return { ...state, blocked: `${directory} bukan folder.` };
@@ -112,15 +120,22 @@ export async function inspectLink({ directory, script, platform = process.platfo
   state.writable = await canAccess(writableCheck, constants.W_OK);
   state.executable = windows || await canAccess(script, constants.X_OK);
 
-  const link = await lstatOrNull(linkPath);
-  if (link?.isDirectory()) return { ...state, blocked: `${linkPath} sudah ada sebagai folder.` };
-  if (windows && link?.isFile()) {
-    const content = await fs.readFile(linkPath, 'utf8');
-    state.existing = content === renderCmdShim(script) ? 'current' : content.includes(shimMarker) ? 'outdated' : 'foreign';
-  } else if (!windows && link?.isSymbolicLink()) {
-    state.currentTarget = await fs.readlink(linkPath);
-    state.existing = state.currentTarget === script ? 'current' : 'other-link';
-  } else if (link) state.existing = 'foreign';
+  for (const file of files) {
+    const link = await lstatOrNull(file.path);
+    if (link?.isDirectory()) return { ...state, blocked: `${file.path} sudah ada sebagai folder.` };
+    if (file.render && link?.isFile()) {
+      const content = await fs.readFile(file.path, 'utf8');
+      file.existing = content === file.render(script) ? 'current' : content.includes(shimMarker) ? 'outdated' : 'foreign';
+    } else if (!file.render && link?.isSymbolicLink()) {
+      file.currentTarget = await fs.readlink(file.path);
+      file.existing = file.currentTarget === script ? 'current' : 'other-link';
+    } else if (link) file.existing = 'foreign';
+  }
+  // Conflicts win; any mix of current/missing/outdated means the set needs refreshing.
+  const statuses = files.map((file) => file.existing);
+  state.existing = ['foreign', 'other-link'].find((status) => statuses.includes(status))
+    || (statuses.every((status) => status === statuses[0]) ? statuses[0] : 'outdated');
+  state.currentTarget = files[0].currentTarget;
   return state;
 }
 
@@ -130,14 +145,17 @@ export async function applyLink(plan) {
     const { mode } = await fs.stat(plan.script);
     await fs.chmod(plan.script, (mode & 0o777) | 0o111);
   }
-  const temporary = `${plan.linkPath}.mea-skills-${process.pid}`;
-  try {
-    if (plan.kind === 'cmd') await fs.writeFile(temporary, renderCmdShim(plan.script));
-    else await fs.symlink(plan.script, temporary);
-    await fs.rename(temporary, plan.linkPath);
-  } catch (error) {
-    await fs.rm(temporary, { force: true });
-    throw error;
+  for (const file of plan.files) {
+    if (file.existing === 'current') continue;
+    const temporary = `${file.path}.mea-skills-${process.pid}`;
+    try {
+      if (file.render) await fs.writeFile(temporary, file.render(plan.script));
+      else await fs.symlink(plan.script, temporary);
+      await fs.rename(temporary, file.path);
+    } catch (error) {
+      await fs.rm(temporary, { force: true });
+      throw error;
+    }
   }
 }
 
@@ -161,8 +179,9 @@ export async function runTerminalLink({
     if (windows) {
       print();
       print('Windows: symlink membutuhkan hak Administrator atau Developer Mode, jadi command dibuat');
-      print(`sebagai file ${commandName}.cmd yang menjalankan: node "${script}"`);
-      if (!(await confirm(`Izinkan pembuatan file ${commandName}.cmd?`, true))) throw new Cancelled();
+      print(`sebagai file ${commandName}.cmd (CMD/PowerShell) dan ${commandName} (Git Bash) yang menjalankan:`);
+      print(`  node "${script}"`);
+      if (!(await confirm(`Izinkan pembuatan file ${commandName}.cmd dan ${commandName}?`, true))) throw new Cancelled();
     }
     if (!(await lstatOrNull(script))) throw new Error(`Script tidak ditemukan: ${script}`);
 
@@ -200,9 +219,10 @@ export async function runTerminalLink({
 
     if (plan.existing === 'other-link' || plan.existing === 'foreign') {
       print();
-      print(plan.existing === 'other-link'
-        ? `${plan.linkPath} sudah ada dan menunjuk ke ${plan.currentTarget}.`
-        : `${plan.linkPath} sudah ada dan bukan dibuat oleh mea-skills.`);
+      for (const file of plan.files) {
+        if (file.existing === 'other-link') print(`${file.path} sudah ada dan menunjuk ke ${file.currentTarget}.`);
+        if (file.existing === 'foreign') print(`${file.path} sudah ada dan bukan dibuat oleh mea-skills.`);
+      }
       if (!(await confirm('Timpa file tersebut?', false))) throw new Cancelled();
     }
     if (!plan.executable) {
@@ -214,7 +234,7 @@ export async function runTerminalLink({
     }
     if (plan.existing === 'current' && !plan.makeExecutable) {
       print();
-      print(`✓ ${plan.linkPath} sudah menunjuk ke script ini. Tidak ada yang perlu diubah.`);
+      print(`✓ ${plan.files.map((file) => file.path).join(' dan ')} sudah menunjuk ke script ini. Tidak ada yang perlu diubah.`);
       return { cancelled: false, changed: false, linkPath: plan.linkPath };
     }
 
@@ -231,17 +251,21 @@ export async function runTerminalLink({
     print('Rencana:');
     if (plan.createDirectory) print(`  - Buat folder: ${plan.directory}`);
     if (plan.makeExecutable) print(`  - Tambahkan izin eksekusi: ${script}`);
-    const replace = plan.existing === 'missing' ? '' : ' (timpa yang lama)';
-    print(plan.kind === 'cmd'
-      ? `  - Buat file: ${plan.linkPath}${replace}`
-      : `  - Buat symlink: ${plan.linkPath} → ${script}${replace}`);
+    for (const file of plan.files) {
+      if (file.existing === 'current') continue;
+      const replace = file.existing === 'missing' ? '' : ' (timpa yang lama)';
+      print(file.render ? `  - Buat file: ${file.path}${replace}` : `  - Buat symlink: ${file.path} → ${script}${replace}`);
+    }
     if (!(await confirm('Lanjutkan?', true))) throw new Cancelled();
 
     await applyLink(plan);
     print();
-    print(`✓ Command trivy-porter siap: ${plan.linkPath}`);
+    print(`✓ Command trivy-porter siap: ${plan.files.map((file) => file.path).join(', ')}`);
     print(windows ? 'Buka terminal baru, lalu cek:' : 'Buka terminal baru (atau jalankan `hash -r`), lalu cek:');
-    print(`  ${windows ? 'where' : 'which'} trivy-porter`);
+    if (windows) {
+      print('  where trivy-porter   (CMD/PowerShell)');
+      print('  which trivy-porter   (Git Bash)');
+    } else print('  which trivy-porter');
     print('  trivy-porter --help');
     print();
     print('Untuk menghapusnya nanti:');
@@ -257,7 +281,7 @@ export async function runTerminalLink({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2).filter((item) => item !== '--');
   if (args.length && args.every((item) => ['--help', '-h'].includes(item))) {
-    console.log('Pemakaian: pnpm run mea-skills:terminal-link\nBuat command trivy-porter di ~/.local/bin (file .cmd di Windows) yang berlaku untuk semua versi Node.js.');
+    console.log('Pemakaian: pnpm run mea-skills:terminal-link\nBuat command trivy-porter di ~/.local/bin (file .cmd dan shim Git Bash di Windows) yang berlaku untuk semua versi Node.js.');
   } else if (args.length) {
     console.error(`Argumen tidak dikenal: ${args.join(' ')}. Gunakan --help untuk bantuan.`);
     process.exitCode = 1;

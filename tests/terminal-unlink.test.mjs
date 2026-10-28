@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { test } from 'node:test';
+import { renderCmdShim, renderShShim } from '../scripts/terminal-link.mjs';
 import { runTerminalUnlink } from '../scripts/terminal-unlink.mjs';
 
 async function fixture(t) {
@@ -95,4 +96,18 @@ test('reports another trivy-porter still on PATH after removal', async t => {
   await fs.writeFile(path.join(other, 'trivy-porter'), '', { mode: 0o755 });
   const { text } = await answerUnlink(setup, ['', ''], { environment: { PATH: `${setup.bin}:${other}` } });
   assert.match(text, /Masih ada command trivy-porter lain di PATH/u);
+});
+
+test('Windows removes both shims but keeps a file mea-skills did not create', { skip: process.platform !== 'win32' }, async t => {
+  const setup = await fixture(t);
+  await fs.writeFile(`${setup.linkPath}.cmd`, renderCmdShim(setup.script));
+  await fs.writeFile(setup.linkPath, renderShShim(setup.script));
+  await answerUnlink(setup, ['', ''], { platform: 'win32', environment: { Path: setup.bin } });
+  assert.deepEqual(await fs.readdir(setup.bin), []);
+
+  await fs.writeFile(`${setup.linkPath}.cmd`, renderCmdShim(setup.script));
+  await fs.writeFile(setup.linkPath, 'user-owned');
+  const { text } = await answerUnlink(setup, ['', ''], { platform: 'win32', environment: { Path: setup.bin } });
+  assert.match(text, /bukan dibuat oleh mea-skills/u);
+  assert.deepEqual(await fs.readdir(setup.bin), ['trivy-porter']);
 });
