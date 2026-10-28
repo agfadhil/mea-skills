@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyInstallPlan, createInstallPlan, getDefaultTargets, resolveDestination } from './skill-installer.mjs';
 import { readVersion } from './mea-skills-version.mjs';
-import { renderInstallSuccess } from './installer-output.mjs';
+import { colorEnabled, painter, renderInstallSuccess } from './installer-output.mjs';
 
 const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const actionLabels = { install: 'baru', update: 'perbarui (timpa versi lama)', unchanged: 'sudah sama, lewati' };
@@ -61,12 +61,14 @@ export async function runInstaller({
     }
 
     const plan = await createInstallPlan({ repositoryRoot, targets });
+    // Status colors: unchanged green, update yellow, install blue (tones live in installer-output.mjs).
+    const paint = painter(colorEnabled({ isTTY: output.isTTY, environment }));
     print();
     print('Rencana instalasi:');
     for (const target of plan.targets) {
       print(`${target.label}: ${target.directory}`);
       for (const operation of plan.operations.filter((item) => item.targetId === target.id)) {
-        print(`  - ${operation.name}: ${actionLabels[operation.action]}`);
+        print(`  - ${operation.name}: ${paint(actionLabels[operation.action], operation.action)}`);
       }
     }
     print('Path custom perlu didukung oleh pengaturan discovery agent Anda.');

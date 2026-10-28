@@ -111,10 +111,11 @@ test('destination changes invalidate the entire plan before any selected skill i
   await assertNoInstallerArtifacts(setup.directory);
 });
 
-async function answerInstaller(setup, answers) {
+async function answerInstaller(setup, answers, { environment = {}, transcript = [] } = {}) {
   const input = new PassThrough();
   const remaining = [...answers];
   const output = new Writable({ write(chunk, _encoding, done) {
+    transcript.push(chunk.toString());
     if (chunk.toString().endsWith(': ')) {
       assert.ok(remaining.length, 'Installer requested an unexpected answer');
       const answer = remaining.shift();
@@ -123,7 +124,7 @@ async function answerInstaller(setup, answers) {
     done();
   } });
   try {
-    const result = await runInstaller({ ...setup, input, output, platform: 'darwin', environment: {}, cwd: setup.directory });
+    const result = await runInstaller({ ...setup, input, output, platform: 'darwin', environment, cwd: setup.directory });
     assert.equal(remaining.length, 0);
     return result;
   } finally {
@@ -171,4 +172,25 @@ test('next steps explain npm link for one Node.js version and terminal-link for 
   assert.match(text, /beberapa versi Node\.js[\s\S]*pnpm run mea-skills:terminal-link/u);
   assert.match(text, /npm unlink -g mea-skills/u);
   assert.match(text, /pnpm run mea-skills:terminal-unlink/u);
+});
+
+test('plan statuses are colored green, yellow, and blue only when color is enabled', async t => {
+  const setup = await fixture(t);
+  const [target] = getDefaultTargets({ platform: 'darwin', homeDirectory: setup.homeDirectory });
+  await skill(setup.repositoryRoot, 'fresh', 'source-fresh');
+  await skill(setup.repositoryRoot, 'changed', 'source-changed');
+  await skill(setup.repositoryRoot, 'same', 'source-same');
+  await skill(target.directory, 'changed', 'installed-changed');
+  await skill(target.directory, 'same', 'source-same');
+  const colored = [];
+  await answerInstaller(setup, ['2', '', 'n'], { environment: { FORCE_COLOR: '1' }, transcript: colored });
+  const text = colored.join('');
+  assert.match(text, /same: \x1b\[32msudah sama, lewati\x1b\[0m/u);
+  assert.match(text, /changed: \x1b\[33mperbarui \(timpa versi lama\)\x1b\[0m/u);
+  assert.match(text, /fresh: \x1b\[94mbaru\x1b\[0m/u);
+
+  const plain = [];
+  await answerInstaller(setup, ['2', '', 'n'], { environment: { FORCE_COLOR: '1', NO_COLOR: '' }, transcript: plain });
+  assert.doesNotMatch(plain.join(''), /\x1b\[/u);
+  assert.match(plain.join(''), /fresh: baru\n/u);
 });

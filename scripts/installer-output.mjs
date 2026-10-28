@@ -3,7 +3,14 @@ import { stripVTControlCharacters } from 'node:util';
 const tones = {
   border: '90', brand: '1;36', success: '1;32', heading: '1;37',
   label: '1;36', muted: '90', command: '1;36',
+  unchanged: '32', update: '33', install: '94',
 };
+
+export const colorEnabled = ({ isTTY = false, environment = {} } = {}) =>
+  !Object.hasOwn(environment, 'NO_COLOR') && environment.TERM !== 'dumb' &&
+  environment.FORCE_COLOR !== '0' && Boolean(isTTY || environment.FORCE_COLOR);
+
+export const painter = (color) => (text, tone) => color && tone ? `\x1b[${tones[tone]}m${text}\x1b[0m` : text;
 
 function cellWidth(character) {
   if (/\p{Mark}/u.test(character)) return 0;
@@ -44,9 +51,7 @@ function wrap(value, width, preserveWhitespace = false) {
 }
 
 export function renderInstallSuccess(plan, result, { version, columns = 80, isTTY = false, environment = {} } = {}) {
-  const color = !Object.hasOwn(environment, 'NO_COLOR') && environment.TERM !== 'dumb' &&
-    environment.FORCE_COLOR !== '0' && Boolean(isTTY || environment.FORCE_COLOR);
-  const paint = (text, tone) => color && tone ? `\x1b[${tones[tone]}m${text}\x1b[0m` : text;
+  const paint = painter(colorEnabled({ isTTY, environment }));
   const width = Math.max(12, Math.min(Number.isFinite(columns) ? Math.floor(columns) : 80, 78));
   const boxed = width >= 52;
   const contentWidth = width - (boxed ? 6 : 2);
