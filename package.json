@@ -16,7 +16,7 @@
     "mea-skills:terminal-link": "node scripts/terminal-link.mjs",
     "mea-skills:terminal-unlink": "node scripts/terminal-unlink.mjs",
     "trivy-porter": "node scripts/trivy-porter.mjs",
-    "version": "node scripts/sync-readme-version.mjs && git add README.md",
+    "version": "node scripts/sync-readme-version.mjs && git add README.md trivy-porter/VERSION",
     "test": "node --test",
     "test:trivy-porter": "python3 -B -m unittest discover -s tests -p \"test_*.py\""
   }

@@ -31,6 +31,8 @@ UPLOAD_PROMPT = (
     "\n"
     "Perbaiki terlebih dahulu dengan jumlah temuan: n"
 )
+# Synced from package.json on release, so installed skill copies know their version.
+VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 FLAG_LINE = re.compile(r"^\s+(?:-\w,\s+)?--([\w-]+)(?:\s+(\w+))?\s{2,}(.*)$")
 VALUE_TYPES = {"string", "strings", "stringArray", "int", "ints", "uint", "float", "float64", "duration"}
@@ -996,6 +998,16 @@ def continue_session(session):
     return None
 
 
+def mea_skills_version():
+    try:
+        version = VERSION_FILE.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise CliError(f"Gagal membaca versi mea-skills dari {VERSION_FILE}: {exc}") from exc
+    if not re.fullmatch(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?", version):
+        raise CliError(f"Versi mea-skills tidak valid di {VERSION_FILE}.")
+    return version
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Menu Trivy lokal; analisis/perbaikan dilanjutkan manual melalui chat editor.")
     parser.add_argument("action", nargs="?", choices=["continue", "storage", "sessions", "clean"],
@@ -1008,6 +1020,7 @@ def parse_args(argv=None):
     shortcuts.add_argument("--clean", action="store_true", help="Hapus seluruh folder .trivy-porter di cwd, tanpa pertanyaan tambahan.")
     shortcuts.add_argument("-d", "--download", action="store_true", help="Ekspor laporan sesi terbaru ke folder Downloads untuk diunggah ke agent.")
     shortcuts.add_argument("--prompt", action="store_true", help="Cetak prompt laporan JSON; ganti n dengan jumlah temuan (0 = semua).")
+    shortcuts.add_argument("-v", "--version", action="store_true", help="Tampilkan versi mea-skills saat ini.")
     parser.add_argument("--download-dir", help="Folder tujuan --download (default: ~/Downloads).")
     return parser.parse_args(argv)
 
@@ -1018,8 +1031,8 @@ def main(argv=None):
     try:
         if args.download_dir is not None and not args.download:
             raise CliError("--download-dir hanya digunakan bersama --download.")
-        if (args.clean or args.download or args.prompt) and args.action:
-            raise CliError("--clean/--download/--prompt tidak digabung dengan subcommand lain.")
+        if (args.clean or args.download or args.prompt or args.version) and args.action:
+            raise CliError("--clean/--download/--prompt/--version tidak digabung dengan subcommand lain.")
         if args.session and args.action not in {"continue", "clean"} and not args.download:
             raise CliError("--session digunakan bersama continue, clean, atau --download.")
         if args.all_sessions and args.action != "clean":
@@ -1028,6 +1041,9 @@ def main(argv=None):
             raise CliError("Pilih salah satu: --session ID atau --all.")
         if args.prompt:
             print(UPLOAD_PROMPT)
+            return 0
+        if args.version:
+            print(f"mea-skills v{mea_skills_version()}")
             return 0
         print("Trivy Porter — terminal (0 pada menu = batal; pada jumlah temuan = semua; Ctrl+C = batal)")
         if args.clean:

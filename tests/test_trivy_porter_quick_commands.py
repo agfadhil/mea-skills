@@ -82,6 +82,38 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
         self.assertFalse(self.state.exists())
         self.assertEqual(self.calls(), [])
 
+    def test_version_prints_the_mea_skills_release_without_accessing_a_project(self):
+        self.env["PATH"] = ""
+        missing_project = self.root / "project that does not exist"
+        manifest = json.loads((CLI.parents[2] / "package.json").read_text(encoding="utf-8"))
+        # The skill's VERSION file must stay in sync with the release in package.json.
+        self.assertEqual((CLI.parents[1] / "VERSION").read_text(encoding="utf-8"), manifest["version"] + "\n")
+        for flag in ("--version", "-v"):
+            with self.subTest(flag=flag):
+                result = self.run_cli("", flag, project=missing_project)
+                self.assertEqual(result.stdout, f"mea-skills v{manifest['version']}\n")
+        self.assertFalse(missing_project.exists())
+        self.assertFalse(self.state.exists())
+        self.assertEqual(self.calls(), [])
+
+    def test_version_rejects_other_actions_and_a_missing_or_invalid_file(self):
+        for args in (["--version", "continue"], ["-v", "--prompt"], ["-v", "--clean"]):
+            with self.subTest(args=args):
+                result = self.run_cli("", *args, expected=None)
+                self.assertNotEqual(result.returncode, 0)
+        sys.path.insert(0, str(CLI.parent))
+        try:
+            porter = importlib.import_module("trivy_porter")
+        finally:
+            sys.path.pop(0)
+        invalid = self.root / "VERSION"
+        invalid.write_text("not a version\n", encoding="utf-8")
+        for path in (self.root / "missing" / "VERSION", invalid):
+            with self.subTest(path=path.name), patch.object(porter, "VERSION_FILE", path), \
+                    redirect_stderr(io.StringIO()) as stderr, redirect_stdout(io.StringIO()):
+                self.assertEqual(porter.main(["--version"]), 2)
+                self.assertIn("ersi mea-skills", stderr.getvalue())
+
     def test_clean_removes_the_entire_local_folder_without_a_prompt(self):
         local = self.project / ".trivy-porter"
         session = self.report_session(state=local)

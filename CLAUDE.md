@@ -59,7 +59,7 @@ Run a single test: `node --test tests/skill-installer.test.mjs` or `python3 -B -
 
 ## Versioning / release
 
-Every push to `main` triggers `.github/workflows/bump-version.yml`, which runs `npm version minor` and pushes a `chore(release): vX.Y.Z [skip ci]` commit plus annotated tag; their body lists `- <subject> (<hash>)` for each commit since the previous `v*` tag. The npm `version` lifecycle script (`scripts/sync-readme-version.mjs`) rewrites README's `Current version: **x.y.z**` line and stages it, so keep that exact line format. Do **not** bump `package.json` version manually.
+Every push to `main` triggers `.github/workflows/bump-version.yml`, which runs `npm version minor` and pushes a `chore(release): vX.Y.Z [skip ci]` commit plus annotated tag; their body lists `- <subject> (<hash>)` for each commit since the previous `v*` tag. The npm `version` lifecycle script (`scripts/sync-readme-version.mjs`) rewrites README's `Current version: **x.y.z**` line and `trivy-porter/VERSION` (read by `trivy-porter -v`, including installed copies) and stages both, so keep that exact line format. Do **not** bump `package.json` version manually.
 
 ## When adding or changing a skill
 

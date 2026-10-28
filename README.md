@@ -183,13 +183,16 @@ Adjust the installed path for your chosen destination. On Windows, use `py -3` o
 
 ### Storage Location and Cleanup
 
-From your application directory, these shortcuts export the report, print a chat prompt, or remove local session storage:
+From your application directory, these shortcuts export the report, print a chat prompt, remove local session storage, or show the mea-skills version:
 
 ```sh
 trivy-porter -d          # equivalent to --download
 trivy-porter --prompt
 trivy-porter --clean
+trivy-porter -v          # equivalent to --version, prints mea-skills vX.Y.Z
 ```
+
+`--version` (or `-v`) prints the version stored in `trivy-porter/VERSION`, the same as `pnpm run mea-skills:version`. The file ships with the skill, so it also works from a copy installed into an agent skills folder. It is synced from `package.json` on every release; do not edit it manually.
 
 `--download` (or its shorthand `-d`) writes one self-contained, sanitized JSON report to `~/Downloads` and prints its full path. Both forms select this project's most recently updated session that has scan output; use `--session SESSION_ID` to select one explicitly, or `--download-dir /path/to/folder` to change the export destination. Source selection still accepts `--project` and `--state-dir`. Attach the exported JSON to an AI agent and ask it to analyze the findings and propose solutions. Exporting does not run a new scan or upload anything automatically; the report describes the saved scan and session snapshot.
 

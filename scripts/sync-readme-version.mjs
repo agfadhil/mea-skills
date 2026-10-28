@@ -12,18 +12,22 @@ export function replaceReadmeVersion(text, version) {
   return text.replace(pattern, (_match, before, after) => `${before}${version}${after}`);
 }
 
+// Installed skill copies have no package.json, so trivy-porter ships its own VERSION file.
+export const skillVersionFile = path.join('trivy-porter', 'VERSION');
+
 export async function syncReadmeVersion(repositoryRoot = repositoryRootDefault) {
   const version = await readVersion(repositoryRoot);
   const readme = path.join(repositoryRoot, 'README.md');
   const text = await readFile(readme, 'utf8');
   const updated = replaceReadmeVersion(text, version);
   if (updated !== text) await writeFile(readme, updated);
+  await writeFile(path.join(repositoryRoot, skillVersionFile), `${version}\n`);
   return version;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  syncReadmeVersion().then((version) => console.log(`README.md diselaraskan ke v${version}`)).catch((error) => {
-    console.error(`Gagal menyelaraskan versi README: ${error.message}`);
+  syncReadmeVersion().then((version) => console.log(`README.md dan ${skillVersionFile} diselaraskan ke v${version}`)).catch((error) => {
+    console.error(`Gagal menyelaraskan versi: ${error.message}`);
     process.exitCode = 1;
   });
 }
