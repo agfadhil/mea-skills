@@ -29,7 +29,7 @@ export function logoRows({ version, platform } = {}) {
     [['│', 'frame'], ['  ╚═╝  ╚══╝  ╚═╝  ', 'brand'], ['│', 'frame'], ['   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗', 'brand']],
     [['│', 'frame'], ['    ◆ SKILLS ◆    ', 'heading'], ['│', 'frame'], ['   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║', 'brand']],
     [['╰──────────────────╯', 'frame'], ['   ███████║██║  ██╗██║███████╗███████╗███████║', 'brand']],
-    [[`                       ${details}`, 'muted']],
+    [['by: Fadhil             ', 'brand'], [details, 'muted']],
   ];
 }
 

@@ -176,7 +176,7 @@ test('installer logo renders the giant monogram and stacked block typography wit
     '│  ╚═╝  ╚══╝  ╚═╝  │   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗',
     '│    ◆ SKILLS ◆    │   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║',
     '╰──────────────────╯   ███████║██║  ██╗██║███████╗███████╗███████║',
-    '                       Agent Skills Installer · v2.3.0 · macOS',
+    'by: Fadhil             Agent Skills Installer · v2.3.0 · macOS',
   ].join('\n'));
 });
 
@@ -184,6 +184,7 @@ test('next steps explain npm link for one Node.js version and terminal-link for 
   const plan = { skills: [{ name: 'trivy-porter' }], targets: [{ id: 'claude', label: 'Claude', directory: '/skills' }] };
   const text = renderInstallSuccess(plan, { installed: [], unchanged: [] }, { version: '2.3.0', columns: 200 });
   assert.match(text, /◆ SKILLS ◆/u);
+  assert.match(text, /by: Fadhil/u);
   assert.match(text, /Agent Skills Installer · v2\.3\.0/u);
   assert.match(text, /INSTRUKSI SELANJUTNYA/u);
   assert.match(text, /satu versi Node\.js[\s\S]*npm link/u);
