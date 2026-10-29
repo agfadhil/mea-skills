@@ -1,16 +1,38 @@
 import { stripVTControlCharacters } from 'node:util';
 
 const tones = {
-  border: '90', brand: '1;36', success: '1;32', heading: '1;37',
+  border: '90', brand: '1;36', frame: '36', success: '1;32', heading: '1;37',
   label: '1;36', muted: '90', command: '1;36',
   unchanged: '32', update: '33', install: '94',
 };
+const osLabels = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 
 export const colorEnabled = ({ isTTY = false, environment = {} } = {}) =>
   !Object.hasOwn(environment, 'NO_COLOR') && environment.TERM !== 'dumb' &&
   environment.FORCE_COLOR !== '0' && Boolean(isTTY || environment.FORCE_COLOR);
 
 export const painter = (color) => (text, tone) => color && tone ? `\x1b[${tones[tone]}m${text}\x1b[0m` : text;
+
+export function logoRows({ version, platform } = {}) {
+  const details = [
+    'Agent Skills Installer',
+    version ? `v${version}` : null,
+    platform ? (osLabels[platform] || platform) : null,
+  ].filter(Boolean).join(' · ');
+  return [
+    [['╭───────────╮', 'frame']],
+    [['│', 'frame'], ['  ◆ ', 'brand'], ['M E A  ', 'heading'], ['│', 'frame'], ['   M E A   S K I L L S', 'brand']],
+    [['│', 'frame'], ['  S K L S  ', 'brand'], ['│', 'frame'], [`   ${details}`, 'muted']],
+    [['╰───────────╯', 'frame']],
+  ];
+}
+
+export function renderInstallerLogo({ version, platform, isTTY = false, environment = {} } = {}) {
+  const paint = painter(colorEnabled({ isTTY, environment }));
+  return logoRows({ version, platform })
+    .map((segments) => segments.map(([text, tone]) => paint(text, tone)).join(''))
+    .join('\n');
+}
 
 function cellWidth(character) {
   if (/\p{Mark}/u.test(character)) return 0;
@@ -63,7 +85,13 @@ export function renderInstallSuccess(plan, result, { version, columns = 80, isTT
   const agents = plan.targets.map(target => target.label).join('/');
   const hasTrivy = plan.skills.some(skill => skill.name === 'trivy-porter');
 
-  add(version ? `MEA SKILLS · v${version}` : 'MEA SKILLS', 'brand');
+  const logo = logoRows({ version });
+  const logoWidth = Math.max(...logo.map((segments) => textWidth(segments.map(([text]) => text).join(''))));
+  if (contentWidth >= logoWidth) {
+    for (const segments of logo) rows.push({ segments });
+  } else {
+    add(version ? `MEA SKILLS · v${version}` : 'MEA SKILLS', 'brand');
+  }
   add();
   add(result.installed.length ? '✓ Instalasi selesai' : '✓ Semua skill sudah terbaru', 'success');
   add(`${plan.skills.length} skill · ${plan.targets.length} tujuan instalasi`, 'muted');
@@ -125,9 +153,10 @@ export function renderInstallSuccess(plan, result, { version, columns = 80, isTT
       lines.push(boxed ? border('├', '┤') : paint('─'.repeat(width), 'border'));
       continue;
     }
-    const text = paint(row.text, row.tone);
+    const plain = row.segments ? row.segments.map(([item]) => item).join('') : row.text;
+    const text = row.segments ? row.segments.map(([item, tone]) => paint(item, tone)).join('') : paint(row.text, row.tone);
     lines.push(boxed
-      ? `${paint('│', 'border')}  ${text}${' '.repeat(Math.max(0, contentWidth - textWidth(row.text)))}  ${paint('│', 'border')}`
+      ? `${paint('│', 'border')}  ${text}${' '.repeat(Math.max(0, contentWidth - textWidth(plain)))}  ${paint('│', 'border')}`
       : `  ${text}`);
   }
   if (boxed) lines.push(border('╰', '╯'));

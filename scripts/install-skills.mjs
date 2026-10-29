@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyInstallPlan, createInstallPlan, getDefaultTargets, resolveDestination } from './skill-installer.mjs';
 import { readVersion } from './mea-skills-version.mjs';
-import { colorEnabled, painter, renderInstallSuccess } from './installer-output.mjs';
+import { colorEnabled, painter, renderInstallerLogo, renderInstallSuccess } from './installer-output.mjs';
 
 const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const actionLabels = { install: 'baru', update: 'perbarui (timpa versi lama)', unchanged: 'sudah sama, lewati' };
@@ -27,8 +27,8 @@ export async function runInstaller({
     return answer.value.trim();
   };
   try {
-    print('MEA Skills — Installer');
-    print(`OS: ${{ win32: 'Windows', darwin: 'macOS', linux: 'Linux' }[platform] || platform}`);
+    const version = await readVersion(repositoryRoot).catch(() => undefined);
+    print(renderInstallerLogo({ version, platform, isTTY: output.isTTY, environment }));
     print();
     print('Pilih tujuan instalasi:');
     print('1. Claude, Codex, dan Antigravity (default)');
@@ -80,7 +80,6 @@ export async function runInstaller({
       print('Masukkan Y untuk melanjutkan atau N untuk membatalkan.');
     }
     const result = await applyInstallPlan(plan);
-    const version = await readVersion(repositoryRoot).catch(() => undefined);
     output.write(renderInstallSuccess(plan, result, {
       version, columns: output.columns, isTTY: output.isTTY, environment,
     }));
