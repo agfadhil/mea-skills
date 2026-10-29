@@ -68,18 +68,75 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
         self.assertEqual(len(files), 1)
         return files[0], json.loads(files[0].read_text(encoding="utf-8"))
 
-    def test_prompt_explains_zero_without_accessing_a_project_or_creating_state(self):
+    def fake_clipboard(self, working=True):
+        """Every platform's clipboard tool name records its stdin, or fails."""
+        copied = self.root / "clipboard.txt"
+        for name in ("pbcopy", "clip", "wl-copy", "xclip", "xsel"):
+            tool = self.bin / name
+            tool.write_text("#!" + sys.executable + "\n" + (
+                "import sys\nfrom pathlib import Path\n"
+                f"Path({str(copied)!r}).write_bytes(sys.stdin.buffer.read())\n" if working else "import sys\nsys.exit(1)\n"),
+                encoding="utf-8")
+            tool.chmod(tool.stat().st_mode | stat.S_IXUSR)
+        return copied
+
+    def handoff_line(self, session):
+        result = self.run_cli("", "continue", "--session", session["session_id"])
+        lines = result.stdout.splitlines()
+        return lines[lines.index("SALIN KE CHAT") + 1]
+
+    @unittest.skipIf(os.name == "nt", "Fake clipboard tools are POSIX scripts")
+    def test_prompt_repeats_the_latest_handoff_line_and_copies_it(self):
+        older = self.report_session()
+        latest = self.report_session()
+        copied = self.fake_clipboard()
+        for flag in ("--prompt", "-p"):
+            with self.subTest(flag=flag):
+                copied.unlink(missing_ok=True)
+                result = self.run_cli("", flag)
+                self.assertEqual(result.stdout, self.handoff_line(latest) + "\n")
+                self.assertTrue(result.stdout.startswith("$trivy-porter analyze " + latest["session_id"] + " "))
+                self.assertTrue(result.stdout.endswith(" Jumlah temuan yang ingin diselesaikan: n\n"))
+                self.assertEqual(copied.read_text(encoding="utf-8"), result.stdout.rstrip("\n"))
+                self.assertIn("clipboard", result.stderr)
+        result = self.run_cli("", "-p", "--session", older["session_id"])
+        self.assertEqual(result.stdout, self.handoff_line(older) + "\n")
+        self.assertEqual(self.calls(), [])
+
+    @unittest.skipIf(os.name == "nt", "Fake clipboard tools are POSIX scripts")
+    def test_prompt_uses_continue_after_analysis_and_skips_sessions_without_a_handoff(self):
+        batch = self.create_session("awaiting_batch")
+        self.create_session("configuring", pending_question="method")
+        self.fake_clipboard()
+        result = self.run_cli("", "--prompt")
+        self.assertEqual(result.stdout, self.handoff_line(batch) + "\n")
+        self.assertTrue(result.stdout.startswith("$trivy-porter continue " + batch["session_id"]))
+
+    @unittest.skipIf(os.name == "nt", "Fake clipboard tools are POSIX scripts")
+    def test_prompt_still_prints_when_the_clipboard_fails(self):
+        session = self.report_session()
+        copied = self.fake_clipboard(working=False)
+        result = self.run_cli("", "-p")
+        self.assertEqual(result.stdout, self.handoff_line(session) + "\n")
+        self.assertIn("secara manual", result.stderr)
+        self.assertFalse(copied.exists())
+
+    def test_prompt_without_a_handoff_session_fails_without_creating_state(self):
         self.env["PATH"] = ""
-        missing_project = self.root / "project that does not exist"
         new_state = self.root / "unused state folder"
-        result = self.run_cli("", "--prompt", "--state-dir", str(new_state), project=missing_project)
-        self.assertTrue(result.stdout.startswith("$trivy-porter "))
-        self.assertIn("0 = semua temuan", result.stdout)
-        self.assertEqual(result.stdout.splitlines()[-1],
-                         "Perbaiki terlebih dahulu dengan jumlah temuan: n")
-        self.assertFalse(missing_project.exists())
+        result = self.run_cli("", "--prompt", "--state-dir", str(new_state), expected=None)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("Belum ada sesi", result.stderr)
         self.assertFalse(new_state.exists())
-        self.assertFalse(self.state.exists())
+        self.create_session("configuring", pending_question="method")
+        result = self.run_cli("", "-p", expected=None)
+        self.assertEqual(result.returncode, 2)
+        result = self.run_cli("", "-p", "--session", "f" * 32, expected=None)
+        self.assertIn("Sesi tidak ditemukan", result.stderr)
+        for args in (["-p", "continue"], ["-p", "--download"], ["-p", "--all"]):
+            with self.subTest(args=args):
+                self.assertNotEqual(self.run_cli("", *args, expected=None).returncode, 0)
         self.assertEqual(self.calls(), [])
 
     def test_version_prints_the_mea_skills_release_without_accessing_a_project(self):

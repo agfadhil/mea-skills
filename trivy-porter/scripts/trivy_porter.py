@@ -26,12 +26,8 @@ import terminal_output
 
 
 CAPTURE_LIMIT = 4 * 1024 * 1024
-UPLOAD_PROMPT = (
-    "$trivy-porter Analisis laporan JSON terlampir, jelaskan temuannya dan rekomendasi perbaikannya.\n"
-    "Isi n dengan jumlah temuan; 0 = semua temuan.\n"
-    "\n"
-    "Perbaiki terlebih dahulu dengan jumlah temuan: n"
-)
+# Stages that have not printed a chat handoff yet; --prompt skips them.
+NO_HANDOFF_STAGES = {"configuring", "scan_failed"}
 # Synced from package.json on release, so installed skill copies know their version.
 VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -152,6 +148,62 @@ def command_display(argv):
     return subprocess.list2cmdline(argv) if os.name == "nt" else shlex.join(argv)
 
 
+def location_args(root, base):
+    # Defaults (cwd project, <cwd>/.trivy-porter) are implied; print only overrides.
+    cwd = Path.cwd().resolve()
+    args = [] if root == str(cwd) else ["--project", root]
+    return args + ([] if base == (cwd / ".trivy-porter").resolve() else ["--state-dir", str(base)])
+
+
+def chat_command(data, root, base):
+    """The exact "SALIN KE CHAT" line for a session."""
+    action = "analyze" if data["stage"] == "awaiting_analysis" else "continue"
+    # The skill mention is chat syntax; quote only the arguments as needed.
+    command = "$trivy-porter " + command_display([action, data["session_id"], *location_args(root, base)])
+    return command + " " + terminal_output.COUNT_PLACEHOLDER if action == "analyze" else command
+
+
+def latest_chat_command(project, state_dir=None, session_id=None):
+    """Read-only: rebuild the handoff line of the latest (or chosen) session."""
+    root, base, directory = store.project_context(project, state_dir)
+    sessions = store.load_sessions(directory, root)
+    if session_id:
+        store.validate_id(session_id)
+        candidates = [data for data in sessions if data["session_id"] == session_id]
+        if not candidates:
+            raise CliError("Sesi tidak ditemukan untuk project ini.")
+    else:
+        candidates = [data for data in sessions if data["stage"] not in NO_HANDOFF_STAGES]
+        if not candidates:
+            raise CliError("Belum ada sesi dengan perintah chat untuk folder ini. Jalankan trivy-porter untuk scan baru.")
+    data = max(candidates, key=lambda item: (item["updated_at"], item["session_id"]))
+    return chat_command(data, root, base)
+
+
+def copy_to_clipboard(text):
+    """Best effort through the OS clipboard tool; False when none worked."""
+    if sys.platform == "darwin":
+        candidates = [["pbcopy"]]
+    elif os.name == "nt":
+        candidates = [["clip"]]
+    else:
+        candidates = [["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]]
+    # clip.exe reads UTF-16 with a BOM; pbcopy needs a UTF-8 locale for non-ASCII paths.
+    payload = text.encode("utf-16" if os.name == "nt" else "utf-8")
+    env = {**os.environ, "LC_CTYPE": "UTF-8"} if sys.platform == "darwin" else None
+    for argv in candidates:
+        executable = shutil.which(argv[0])
+        if not executable:
+            continue
+        try:
+            subprocess.run([executable, *argv[1:]], input=payload, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, env=env, check=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        return True
+    return False
+
+
 class Session:
     def __init__(self, project, session_id=None, new=False, state_dir=None, method=None):
         self.root, self.base, self.directory = store.project_context(project, state_dir)
@@ -183,19 +235,11 @@ class Session:
         self.data = store.save_data(self.data, self.data["session_id"], self.root, self.base, self.directory)
 
     def location_args(self):
-        # Defaults (cwd project, <cwd>/.trivy-porter) are implied; print only overrides.
-        cwd = Path.cwd().resolve()
-        args = [] if self.root == str(cwd) else ["--project", self.root]
-        return args + ([] if self.base == (cwd / ".trivy-porter").resolve() else ["--state-dir", str(self.base)])
+        return location_args(self.root, self.base)
 
     def handoff(self):
-        action = "analyze" if self.data["stage"] == "awaiting_analysis" else "continue"
-        # The skill mention is chat syntax; quote only the arguments as needed.
-        command = "$trivy-porter " + command_display([action, self.data["session_id"], *self.location_args()])
-        if action == "analyze":
-            command += " " + terminal_output.COUNT_PLACEHOLDER
         print(terminal_output.render_handoff(
-            self.data, self.root, self.artifact_directory, command,
+            self.data, self.root, self.artifact_directory, chat_command(self.data, self.root, self.base),
             columns=shutil.get_terminal_size(fallback=(80, 24)).columns,
             is_tty=sys.stdout.isatty(), environment=os.environ,
         ), end="", flush=True)
@@ -1088,13 +1132,14 @@ def parse_args(argv=None):
     parser.add_argument("action", nargs="?", choices=["continue", "storage", "sessions", "clean"],
                         help="continue: lanjutkan; storage: lihat lokasi; sessions: daftar sesi; clean: bersihkan sesi.")
     parser.add_argument("--project", default=".", help="Folder project yang discan (default: cwd terminal).")
-    parser.add_argument("--session", help="ID sesi untuk continue, clean, atau --download; continue tanpa ID menampilkan pilihan bila perlu.")
+    parser.add_argument("--session", help="ID sesi untuk continue, clean, --download, atau --prompt; continue tanpa ID menampilkan pilihan bila perlu.")
     parser.add_argument("--state-dir", help="Folder sesi (default: .trivy-porter di cwd; mengalahkan TRIVY_PORTER_STATE_DIR).")
     parser.add_argument("--all", dest="all_sessions", action="store_true", help="clean: seluruh sesi untuk project ini saja.")
     shortcuts = parser.add_mutually_exclusive_group()
     shortcuts.add_argument("--clean", action="store_true", help="Hapus seluruh folder .trivy-porter di cwd, tanpa pertanyaan tambahan.")
     shortcuts.add_argument("-d", "--download", action="store_true", help="Ekspor laporan sesi terbaru ke folder Downloads untuk diunggah ke agent.")
-    shortcuts.add_argument("--prompt", action="store_true", help="Cetak prompt laporan JSON; ganti n dengan jumlah temuan (0 = semua).")
+    shortcuts.add_argument("-p", "--prompt", action="store_true",
+                           help="Cetak ulang perintah \"SALIN KE CHAT\" dari sesi terakhir dan salin ke clipboard.")
     shortcuts.add_argument("-v", "--version", action="store_true", help="Tampilkan versi mea-skills saat ini.")
     parser.add_argument("--download-dir", help="Folder tujuan --download (default: ~/Downloads).")
     return parser.parse_args(argv)
@@ -1108,14 +1153,18 @@ def main(argv=None):
             raise CliError("--download-dir hanya digunakan bersama --download.")
         if (args.clean or args.download or args.prompt or args.version) and args.action:
             raise CliError("--clean/--download/--prompt/--version tidak digabung dengan subcommand lain.")
-        if args.session and args.action not in {"continue", "clean"} and not args.download:
-            raise CliError("--session digunakan bersama continue, clean, atau --download.")
+        if args.session and args.action not in {"continue", "clean"} and not (args.download or args.prompt):
+            raise CliError("--session digunakan bersama continue, clean, --download, atau --prompt.")
         if args.all_sessions and args.action != "clean":
             raise CliError("--all hanya digunakan bersama clean.")
         if args.all_sessions and args.session:
             raise CliError("Pilih salah satu: --session ID atau --all.")
         if args.prompt:
-            print(UPLOAD_PROMPT)
+            command = latest_chat_command(args.project, args.state_dir, args.session)
+            print(command, flush=True)
+            # Status goes to stderr so stdout stays exactly the copyable line.
+            print("Disalin ke clipboard; tinggal tempel di chat agent." if copy_to_clipboard(command)
+                  else "Clipboard tidak tersedia; salin perintah di atas secara manual.", file=sys.stderr)
             return 0
         if args.version:
             print(f"mea-skills v{mea_skills_version()}")

@@ -189,11 +189,11 @@ Adjust the installed path for your chosen destination. On Windows, use `py -3` o
 
 ### Storage Location and Cleanup
 
-From your application directory, these shortcuts export the report, print a chat prompt, remove local session storage, or show the mea-skills version:
+From your application directory, these shortcuts export the report, reprint and copy the latest chat command, remove local session storage, or show the mea-skills version:
 
 ```sh
 trivy-porter -d          # equivalent to --download
-trivy-porter --prompt
+trivy-porter -p          # equivalent to --prompt
 trivy-porter --clean
 trivy-porter -v          # equivalent to --version, prints mea-skills vX.Y.Z
 ```
@@ -202,16 +202,15 @@ trivy-porter -v          # equivalent to --version, prints mea-skills vX.Y.Z
 
 `--download` (or its shorthand `-d`) writes one self-contained, sanitized JSON report to `~/Downloads` and prints its full path. Both forms select this project's most recently updated session that has scan output; use `--session SESSION_ID` to select one explicitly, or `--download-dir /path/to/folder` to change the export destination. Source selection still accepts `--project` and `--state-dir`. Attach the exported JSON to an AI agent and ask it to analyze the findings and propose solutions. Exporting does not run a new scan or upload anything automatically; the report describes the saved scan and session snapshot.
 
-`--prompt` prints this copyable text without reading a session, creating files, or running a scan:
+`--prompt` (or its shorthand `-p`) prints exactly the `SALIN KE CHAT` line of this project's most recently updated session and copies it to the clipboard, so it is ready to paste (Cmd+V / Ctrl+V) into the agent chat. For a session awaiting analysis the output looks like:
 
 ```text
-$trivy-porter Analisis laporan JSON terlampir, jelaskan temuannya dan rekomendasi perbaikannya.
-Isi n dengan jumlah temuan; 0 = semua temuan.
-
-Perbaiki terlebih dahulu dengan jumlah temuan: n
+$trivy-porter analyze d53a4b51f61b4f1ebb7e4c391f073182 Jumlah temuan yang ingin diselesaikan: n
 ```
 
-Upload the exported JSON to the agent chat, copy the printed prompt, and replace `n` before sending it. Use `0` to analyze and handle all unresolved findings in that report in the same request, or a positive integer to limit the requested batch. In all mode, the agent must not stop after the first related group or ask for the same count again. The literal `n`, a negative value, a fraction, or an absent count does not authorize remediation. All mode preserves honest blockers and verification limits; newly discovered findings outside the selected inventory need a fresh request.
+Later stages produce the matching `$trivy-porter continue SESSION_ID` line, and `--project`/`--state-dir` overrides are included exactly as the handoff panel prints them. Sessions still being configured or with a failed scan never showed a handoff and are skipped; use `--session SESSION_ID` to pick a specific session. Stdout contains only the command line; the clipboard status goes to stderr. Copying uses `pbcopy` on macOS, `clip` on Windows, and `wl-copy`, `xclip` or `xsel` on Linux; if none works, the line is still printed for manual copying. The command only reads saved sessions: it creates no files, runs no scan, and does not send the chat message.
+
+Replace `n` before sending: `0` analyzes and handles all unresolved findings in the same request, a positive integer limits the requested batch, and removing the count text requests analysis only. In all mode, the agent must not stop after the first related group or ask for the same count again. The literal `n`, a negative value, a fraction, or an absent count does not authorize remediation. All mode preserves honest blockers and verification limits; newly discovered findings outside the selected inventory need a fresh request.
 
 `--clean` immediately removes the entire `.trivy-porter` folder in the terminal's current directory, including all partitions and unknown contents, without another confirmation. It does not use the storage environment override and cannot be combined with `--state-dir`, `--session`, `--all`, another action, or a different `--project`. A missing folder is a no-op; linked or mounted storage, an active scan/batch, or an ongoing state write is refused. Export before cleanup if you need the evidence. The default exported file in Downloads remains available after cleanup, as do files outside `.trivy-porter`, including user-selected Trivy output files.
 

@@ -36,16 +36,15 @@ Terminal `storage` shows the resolved storage paths and `sessions` lists the cur
 
 `trivy-porter --download` and its shorthand `trivy-porter -d` select the current project's most recently updated session with scan output and write one sanitized, self-contained JSON report to `~/Downloads`, printing the full path. Both forms accept the same options: `--session SESSION_ID` selects a specific session; `--download-dir PATH` changes the destination. Normal project/storage options select the source. No Trivy command or automatic upload runs. The user attaches the file to an AI agent and asks for analysis or solutions. Missing evidence is an error, not an invitation to fabricate a report or rescan. See [session-state.md](session-state.md) for the portable report contract.
 
-`trivy-porter --prompt` prints only this static text for the user to copy into the agent chat with the exported JSON attached:
+`trivy-porter --prompt` (or `-p`) reprints the exact `SALIN KE CHAT` line of the current project's most recently updated session that has reached a handoff, and copies it to the clipboard for pasting into the agent chat:
 
 ```text
-$trivy-porter Analisis laporan JSON terlampir, jelaskan temuannya dan rekomendasi perbaikannya.
-Isi n dengan jumlah temuan; 0 = semua temuan.
-
-Perbaiki terlebih dahulu dengan jumlah temuan: n
+$trivy-porter analyze SESSION_ID Jumlah temuan yang ingin diselesaikan: n
 ```
 
-Replace `n` with a nonnegative integer before sending: `0` requests all unresolved findings in the analyzed inventory, while a positive number limits the batch. The explicit count authorizes analysis followed by that remediation scope in the same request. An unchanged placeholder, negative value, fraction, or omitted count is not a batch request. Printing the prompt does not check a project or session, read/write state, run Trivy, or submit a chat message. `--project` and `--state-dir` do not alter this static output. `trivy-porter --version` (or `-v`) prints `mea-skills vX.Y.Z` from the skill's `VERSION` file and likewise reads no state. Do not combine `--prompt` or `--version` with another action, `--clean`, `--download`, `--session`, `--all`, or `--download-dir`.
+Sessions awaiting a batch or recovery produce the matching `$trivy-porter continue SESSION_ID` line. `--session SESSION_ID` selects a specific session; `--project` and `--state-dir` select the source and appear in the line exactly as the handoff panel prints them. Sessions still in `configuring` or `scan_failed` are skipped; no eligible session is an error. Stdout holds only the line; the clipboard status (`pbcopy`, `clip`, or `wl-copy`/`xclip`/`xsel`) goes to stderr, and a missing clipboard tool does not fail the command. It only reads state: no files are written, Trivy does not run, and no chat message is submitted. Treat a pasted line exactly like the original handoff: replace `n` with a nonnegative integer (`0` = all unresolved findings) to authorize analysis followed by that remediation scope; an unchanged placeholder, negative value, fraction, or omitted count is not a batch request.
+
+`trivy-porter --version` (or `-v`) prints `mea-skills vX.Y.Z` from the skill's `VERSION` file and reads no state. Do not combine `--prompt` or `--version` with another action, `--clean`, `--download`, `--all`, or `--download-dir`; `--version` also rejects `--session`.
 
 `trivy-porter --clean` is an explicit complete reset of `<terminal cwd>/.trivy-porter`, including all project partitions, locks and unknown contents, without another prompt. It ignores storage environment overrides and rejects an explicit `--state-dir`, `--session`, `--all`, another action, or a different `--project`. A missing folder is a no-op. Linked roots, mounted directories, active scans/batches and ongoing state writes are refused. Files outside that local folder are preserved, including the default Downloads export and user-selected Trivy output files. Export first if the user wants to keep the evidence.
 
