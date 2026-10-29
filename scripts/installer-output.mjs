@@ -20,10 +20,16 @@ export function logoRows({ version, platform } = {}) {
     platform ? (osLabels[platform] || platform) : null,
   ].filter(Boolean).join(' · ');
   return [
-    [['╭───────────╮', 'frame']],
-    [['│', 'frame'], ['  ◆ ', 'brand'], ['M E A  ', 'heading'], ['│', 'frame'], ['   M E A   S K I L L S', 'brand']],
-    [['│', 'frame'], ['  S K L S  ', 'brand'], ['│', 'frame'], [`   ${details}`, 'muted']],
-    [['╰───────────╯', 'frame']],
+    [['╭──────────────────╮', 'frame']],
+    [['│', 'frame'], ['  ███╗      ███╗  ', 'brand'], ['│', 'frame'], ['   ███╗   ███╗███████╗ █████╗', 'heading']],
+    [['│', 'frame'], ['  ████╗    ████║  ', 'brand'], ['│', 'frame'], ['   ████╗ ████║██╔════╝██╔══██╗', 'heading']],
+    [['│', 'frame'], ['  ██╔██╗  ██╔██║  ', 'brand'], ['│', 'frame'], ['   ██╔████╔██║█████╗  ███████║', 'heading']],
+    [['│', 'frame'], ['  ██║╚██╗██╔╝██║  ', 'brand'], ['│', 'frame'], ['   ██║ ╚═╝ ██║███████╗██║  ██║', 'heading']],
+    [['│', 'frame'], ['  ██║ ╚███╔╝ ██║  ', 'brand'], ['│', 'frame'], ['   ───────────────────────────────────────────', 'border']],
+    [['│', 'frame'], ['  ╚═╝  ╚══╝  ╚═╝  ', 'brand'], ['│', 'frame'], ['   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗', 'brand']],
+    [['│', 'frame'], ['    ◆ SKILLS ◆    ', 'heading'], ['│', 'frame'], ['   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║', 'brand']],
+    [['╰──────────────────╯', 'frame'], ['   ███████║██║  ██╗██║███████╗███████╗███████║', 'brand']],
+    [[`                       ${details}`, 'muted']],
   ];
 }
 

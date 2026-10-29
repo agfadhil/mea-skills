@@ -164,20 +164,26 @@ test('canceling before confirmation leaves destination directories untouched', a
   await assertNoInstallerArtifacts(setup.directory);
 });
 
-test('installer logo renders the geometric emblem and wordmark with version and OS metadata', () => {
+test('installer logo renders the giant monogram and stacked block typography with version and OS metadata', () => {
   const logo = renderInstallerLogo({ version: '2.3.0', platform: 'darwin' });
   assert.equal(logo, [
-    '╭───────────╮',
-    '│  ◆ M E A  │   M E A   S K I L L S',
-    '│  S K L S  │   Agent Skills Installer · v2.3.0 · macOS',
-    '╰───────────╯',
+    '╭──────────────────╮',
+    '│  ███╗      ███╗  │   ███╗   ███╗███████╗ █████╗',
+    '│  ████╗    ████║  │   ████╗ ████║██╔════╝██╔══██╗',
+    '│  ██╔██╗  ██╔██║  │   ██╔████╔██║█████╗  ███████║',
+    '│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║',
+    '│  ██║ ╚███╔╝ ██║  │   ───────────────────────────────────────────',
+    '│  ╚═╝  ╚══╝  ╚═╝  │   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗',
+    '│    ◆ SKILLS ◆    │   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║',
+    '╰──────────────────╯   ███████║██║  ██╗██║███████╗███████╗███████║',
+    '                       Agent Skills Installer · v2.3.0 · macOS',
   ].join('\n'));
 });
 
 test('next steps explain npm link for one Node.js version and terminal-link for several', () => {
   const plan = { skills: [{ name: 'trivy-porter' }], targets: [{ id: 'claude', label: 'Claude', directory: '/skills' }] };
   const text = renderInstallSuccess(plan, { installed: [], unchanged: [] }, { version: '2.3.0', columns: 200 });
-  assert.match(text, /◆ M E A[\s\S]*M E A   S K I L L S/u);
+  assert.match(text, /◆ SKILLS ◆/u);
   assert.match(text, /Agent Skills Installer · v2\.3\.0/u);
   assert.match(text, /INSTRUKSI SELANJUTNYA/u);
   assert.match(text, /satu versi Node\.js[\s\S]*npm link/u);
