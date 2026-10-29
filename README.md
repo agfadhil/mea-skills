@@ -5,12 +5,12 @@
 │  ███╗      ███╗  │   ███╗   ███╗███████╗ █████╗
 │  ████╗    ████║  │   ████╗ ████║██╔════╝██╔══██╗
 │  ██╔██╗  ██╔██║  │   ██╔████╔██║█████╗  ███████║
-│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║
+│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║          v2.5.0
 │  ██║ ╚███╔╝ ██║  │   ───────────────────────────────────────────
 │  ╚═╝  ╚══╝  ╚═╝  │   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗
 │    ◆ SKILLS ◆    │   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║
 ╰──────────────────╯   ███████║██║  ██╗██║███████╗███████╗███████║
-                       Agent Skills Installer · Claude · Codex · Antigravity
+                       Agent Skills with Magic and Terminal Linked
 ```
 
 A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, creating unit tests without production changes, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Claude, Codex, and Antigravity (all three by default, or a single agent). Supports macOS, Linux, and Windows.

@@ -6,10 +6,17 @@ import { readVersion } from './mea-skills-version.mjs';
 
 const repositoryRootDefault = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const pattern = /(Current version: \*\*)[^*]+(\*\*)/u;
+const logoPattern = /(│.+?██║\s+╚═╝\s+██║███████╗██║\s+██║)\s+v\d+\.\d+\.\d+/u;
 
 export function replaceReadmeVersion(text, version) {
   if (!pattern.test(text)) throw new Error('Baris "Current version: **x.y.z**" tidak ditemukan di README.md.');
-  return text.replace(pattern, (_match, before, after) => `${before}${version}${after}`);
+  let updated = text.replace(pattern, (_match, before, after) => `${before}${version}${after}`);
+  if (logoPattern.test(updated)) {
+    const tag = `v${version}`;
+    const padding = ' '.repeat(Math.max(1, 16 - tag.length));
+    updated = updated.replace(logoPattern, (_match, prefix) => `${prefix}${padding}${tag}`);
+  }
+  return updated;
 }
 
 // Installed skill copies have no package.json, so trivy-porter ships its own VERSION file.

@@ -14,6 +14,20 @@ test('fails loudly when the README no longer has a version line', () => {
   assert.throws(() => replaceReadmeVersion('No version here\n', '1.3.0'), /Current version/u);
 });
 
+test('replaces both the current version line and the logo banner version when present', () => {
+  const text = [
+    '│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║          v1.0.0',
+    '',
+    'Current version: **1.0.0**.',
+  ].join('\n');
+  const updated = replaceReadmeVersion(text, '2.5.1');
+  assert.equal(updated, [
+    '│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║          v2.5.1',
+    '',
+    'Current version: **2.5.1**.',
+  ].join('\n'));
+});
+
 test('syncs README.md and the trivy-porter VERSION file with package.json', async t => {
   const directory = await fs.mkdtemp(path.join(tmpdir(), 'mea-readme-version-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
