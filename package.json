@@ -1,6 +1,6 @@
 {
   "name": "mea-skills",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "private": true,
   "description": "Personal agent skills with an interactive cross-platform installer",
   "type": "module",
