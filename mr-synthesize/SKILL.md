@@ -1,9 +1,9 @@
 ---
-name: mr-description
-description: Generate a merge request or pull request title and description from recent git commits. Use when the user types "/mr-description N", asks for an MR/PR title and description, wants to summarize the last N commits, or asks to prepare a GitLab merge request description from commit history.
+name: mr-synthesize
+description: Generate a merge request or pull request title and description from recent git commits. Use when the user types "/mr-synthesize N", asks for an MR/PR title and description, wants to summarize the last N commits, or asks to prepare a GitLab merge request description from commit history.
 ---
 
-# MR Description
+# MR Synthesize
 
 ## Overview
 
@@ -12,20 +12,20 @@ Use this skill to inspect the latest N commits in the current git repository and
 The primary trigger is:
 
 ```text
-/mr-description <number of commits behind>
+/mr-synthesize <number of commits behind>
 ```
 
 Example:
 
 ```text
-/mr-description 6
+/mr-synthesize 6
 ```
 
 ## Workflow
 
 ### Step 1 - Parse the commit count
 
-Read the positive integer after `/mr-description`.
+Read the positive integer after `/mr-synthesize`.
 
 If no number is provided, use `1` as the default and mention that assumption briefly before doing the work.
 
@@ -139,6 +139,12 @@ Return a concise final answer with:
 
 - A `**Title**` section containing the MR title wrapped inside a Markdown code fence (` ``` `) so the user can easily copy the title string directly using the code block copy button.
 - A `**Description**` section containing the MR description inside a `markdown` code fence. Keep the commit IDs in inline code inside that fence.
+
+Keep both code blocks copy-clean so the copy button never adds a trailing newline:
+
+- Put the closing fence on the line directly after the last content line. Never leave a blank line, whitespace-only line, or trailing spaces before the closing fence.
+- The title block contains exactly one line: the title itself.
+- The description block ends with its last bullet or sentence, with no blank line after it.
 
 Do not include raw git output unless the user asks for it.
 

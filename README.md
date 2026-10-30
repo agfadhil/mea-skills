@@ -67,6 +67,8 @@ For custom paths, the installer accepts `~/...`, `$HOME/...`, `%USERPROFILE%\...
 
 Run `pnpm run mea-skills:install` again whenever repository contents are updated. Skills with identical contents are skipped. Other skill folders at the destination remain untouched.
 
+When a skill has been renamed (for example `mr-description` → `mr-synthesize`), the installer lists any old copy it finds at the destination and asks `[y/N]` whether to remove it. Removal happens only after the final confirmation and after the renamed skill is installed; declining keeps the old folder, and the completion summary reminds you to delete it manually.
+
 The installer prepares and verifies the new copies before replacing each selected skill folder. Updates replace the entire folder, including removing files no longer present in the source. Previous versions are overwritten without creating backup folders or retaining old snapshots.
 
 If installation fails after replacements begin, completed updates remain installed. Run the installer again from the source repository to finish the remaining work.
@@ -78,7 +80,7 @@ Open the agent chat in your working repository, then select or invoke the skill 
 | Skill | Example Invocation | Purpose |
 | --- | --- | --- |
 | [commit-message-generator](commit-message-generator/SKILL.md) | `/commit-message-generator` | Stages all repository changes by default, then suggests a commit subject and brief bulleted body following project rules. Use `no desc` for a one-line subject; `/commit` is also supported. |
-| [mr-description](mr-description/SKILL.md) | `/mr-description 6` | Generates an English MR/PR title and structured description from the last N commits, including commit IDs. Defaults to **1** commit if N is omitted. |
+| [mr-synthesize](mr-synthesize/SKILL.md) | `/mr-synthesize 6` | Generates an English MR/PR title and structured description from the last N commits, including commit IDs. Defaults to **1** commit if N is omitted. |
 | [ut-ranger](ut-ranger/SKILL.md) | `$ut-ranger path` or `$ut-ranger [path1, path2]` | Creates or completes unit tests only in designated test directories, verifies tests and lint, and aims for 100% coverage without changing production code. Reports multiple targets as a numbered list in input order. |
 | [trivy-porter](trivy-porter/SKILL.md) | `trivy-porter` in a terminal | Selects `fs` or `image` scans, flags, and severities locally, then hands the saved session to the agent for explanations and fixes. |
 | trivy-porter — analyze | `$trivy-porter analyze SESSION_ID` in the agent chat | Reads the saved scan, explains findings in Indonesian, and creates an inventory before remediation is selected. |
@@ -283,7 +285,7 @@ The scoped `clean` subcommand previews recognized session files and asks `[y/N]`
 
 The installer only copies skill files. Agent integrations and runtime tools must be installed separately as needed:
 
-- **commit-message-generator** and **mr-description** require Git in the working repository.
+- **commit-message-generator** and **mr-synthesize** require Git in the working repository.
 - **ut-ranger** uses the target repository's existing unit test runner, coverage tooling, and lint/format tools. Dependencies must already be available; the skill does not install them or change project configuration.
 - **trivy-porter** requires Trivy, Git for staging/commit suggestions, and Python 3 for its interactive CLI and session state management. The Node launcher also requires Node.js 20 or later and automatically locates Python 3. Image scans require Docker in PATH, a running Docker daemon, and a project Dockerfile/build context that supports `linux/amd64`.
 - On Windows, ensure `trivy.exe` and Git are available in both the terminal and agent's PATH. Python 3 may be invoked via `python3`, `python`, or `py -3`; ensure an executable is available when running the CLI or session helper.

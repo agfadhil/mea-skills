@@ -262,6 +262,11 @@ Print the commit message wrapped **only** inside a single markdown code block (`
 By default, the commit message must include a subject, a blank line, and a
 concise bullet-point body. If `no desc` is supplied, include only the subject.
 
+Keep the code block copy-clean so the copy button never adds a trailing
+newline: put the closing fence on the line directly after the last content
+line (the subject in `no desc` mode, otherwise the last bullet). Never leave a
+blank line, whitespace-only line, or trailing spaces before the closing fence.
+
 Example valid outputs for `/commit no desc`:
 
 ```
@@ -316,6 +321,9 @@ test(update-stock-merchant): improve unit tests for page and actions
    to the current directory or include unstaged content in an only-staged message.
 8. **Omitting the default description** — include a bullet-point body without
    requiring an extra parameter. Use only the subject when `no desc` is supplied.
+9. **Trailing blank line inside the code block** — the copied message must end
+   on its last content line; a blank line before the closing fence pastes as an
+   extra newline.
 
 ---
 

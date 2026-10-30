@@ -72,6 +72,19 @@ export async function runInstaller({
       }
     }
     print('Path custom perlu didukung oleh pengaturan discovery agent Anda.');
+    for (const name of [...new Set(plan.legacySkills.map((item) => item.name))]) {
+      const found = plan.legacySkills.filter((item) => item.name === name);
+      print();
+      print(`Skill ${name} sudah berganti nama menjadi ${found[0].renamedTo}. Skill lama masih terpasang di:`);
+      for (const legacy of found) print(`  - ${legacy.targetLabel}: ${legacy.destination}`);
+      let removal;
+      while (true) {
+        removal = (await ask(`Hapus skill lama ${name} setelah ${found[0].renamedTo} terpasang? [y/N]: `)).toLowerCase();
+        if (['y', 'yes', 'ya', '1', '', 'n', 'no', 'tidak', '0'].includes(removal)) break;
+        print('Masukkan Y untuk menghapus atau N untuk mempertahankan.');
+      }
+      for (const legacy of found) legacy.remove = ['y', 'yes', 'ya', '1'].includes(removal);
+    }
     let confirmation;
     while (true) {
       confirmation = (await ask('Lanjutkan instalasi ke path di atas? [Y/n]: ')).toLowerCase();

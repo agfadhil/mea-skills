@@ -111,7 +111,7 @@ test('destination changes invalidate the entire plan before any selected skill i
   await assertNoInstallerArtifacts(setup.directory);
 });
 
-async function answerInstaller(setup, answers, { environment = {}, transcript = [] } = {}) {
+async function answerInstaller(setup, answers, { environment = {}, transcript = [], platform = 'darwin' } = {}) {
   const input = new PassThrough();
   const remaining = [...answers];
   const output = new Writable({ write(chunk, _encoding, done) {
@@ -124,7 +124,7 @@ async function answerInstaller(setup, answers, { environment = {}, transcript = 
     done();
   } });
   try {
-    const result = await runInstaller({ ...setup, input, output, platform: 'darwin', environment, cwd: setup.directory });
+    const result = await runInstaller({ ...setup, input, output, platform, environment, cwd: setup.directory });
     assert.equal(remaining.length, 0);
     return result;
   } finally {
@@ -213,4 +213,51 @@ test('plan statuses are colored green, yellow, and blue only when color is enabl
   await answerInstaller(setup, ['2', '', 'n'], { environment: { FORCE_COLOR: '1', NO_COLOR: '' }, transcript: plain });
   assert.doesNotMatch(plain.join(''), /\x1b\[/u);
   assert.match(plain.join(''), /fresh: baru\n/u);
+});
+
+test('a renamed skill is reported and its old copy is removed only after confirmation and installation', async t => {
+  for (const [name, removal, removed] of [['confirmed', 'y', true], ['declined', '', false]]) {
+    await t.test(name, async subtest => {
+      const setup = await fixture(subtest);
+      await skill(setup.repositoryRoot, 'mr-synthesize', 'source');
+      const [target] = getDefaultTargets({ platform: process.platform, homeDirectory: setup.homeDirectory });
+      await skill(target.directory, 'mr-description', 'legacy');
+      const transcript = [];
+      const result = await answerInstaller(setup, ['2', '', removal, 'y'], { platform: process.platform, transcript });
+      const text = transcript.join('');
+      assert.match(text, /Skill mr-description sudah berganti nama menjadi mr-synthesize/u);
+      assert.match(await fs.readFile(path.join(target.directory, 'mr-synthesize', 'SKILL.md'), 'utf8'), /Fixture source/u);
+      assert.equal(result.removed.length, removed ? 1 : 0);
+      if (removed) await assert.rejects(fs.access(path.join(target.directory, 'mr-description')), { code: 'ENOENT' });
+      else assert.match(await fs.readFile(path.join(target.directory, 'mr-description', 'SKILL.md'), 'utf8'), /Fixture legacy/u);
+      assert.match(text, removed ? /mr-description → mr-synthesize · dihapus/u : /mr-description → mr-synthesize · dipertahankan/u);
+      await assertNoInstallerArtifacts(setup.directory);
+    });
+  }
+});
+
+test('canceling the final confirmation keeps the old renamed skill even when its removal was accepted', async t => {
+  const setup = await fixture(t);
+  await skill(setup.repositoryRoot, 'mr-synthesize', 'source');
+  const [target] = getDefaultTargets({ platform: process.platform, homeDirectory: setup.homeDirectory });
+  await skill(target.directory, 'mr-description', 'legacy');
+  const result = await answerInstaller(setup, ['2', '', 'y', 'n'], { platform: process.platform });
+  assert.equal(result.cancelled, true);
+  assert.deepEqual(await fs.readdir(target.directory), ['mr-description']);
+});
+
+test('an old renamed skill edited after planning is not removed', async t => {
+  const setup = await fixture(t);
+  await skill(setup.repositoryRoot, 'new-name', 'source');
+  const [target] = getDefaultTargets({ platform: 'darwin', homeDirectory: setup.homeDirectory });
+  await skill(target.directory, 'old-name', 'legacy');
+  const plan = await createInstallPlan({
+    repositoryRoot: setup.repositoryRoot, targets: [target], renamed: [{ from: 'old-name', to: 'new-name' }],
+  });
+  assert.deepEqual(plan.legacySkills.map(item => [item.name, item.renamedTo]), [['old-name', 'new-name']]);
+  plan.legacySkills[0].remove = true;
+  await fs.writeFile(path.join(target.directory, 'old-name', 'scripts', 'tool.txt'), 'user-edit');
+  await assert.rejects(applyInstallPlan(plan), /old-name/u);
+  assert.equal(await fs.readFile(path.join(target.directory, 'old-name', 'scripts', 'tool.txt'), 'utf8'), 'user-edit');
+  await assert.rejects(fs.access(path.join(target.directory, 'new-name')), { code: 'ENOENT' });
 });

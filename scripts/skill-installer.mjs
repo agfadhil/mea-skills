@@ -6,6 +6,9 @@ import path from 'node:path';
 const ignored = (name) => ['.git', 'node_modules', '__pycache__', '.DS_Store'].includes(name) || name.endsWith('.pyc');
 const pathApi = (platform) => platform === 'win32' ? path.win32 : path.posix;
 
+// Skills renamed in this repository; old installed copies are offered for removal.
+export const renamedSkills = [{ from: 'mr-description', to: 'mr-synthesize' }];
+
 export function getDefaultTargets({ platform = process.platform, homeDirectory = homedir() } = {}) {
   const paths = pathApi(platform);
   return [
@@ -114,7 +117,7 @@ async function canonicalDestination(directory) {
   return path.join(await fs.realpath(current), ...suffix);
 }
 
-export async function createInstallPlan({ repositoryRoot, targets }) {
+export async function createInstallPlan({ repositoryRoot, targets, renamed = renamedSkills }) {
   const root = await fs.realpath(repositoryRoot);
   const skills = await discoverSkills(root);
   if (!Array.isArray(targets) || targets.length === 0) throw new Error('Pilih minimal satu tujuan instalasi.');
@@ -145,8 +148,29 @@ export async function createInstallPlan({ repositoryRoot, targets }) {
       });
     }
   }
-  return { repositoryRoot: root, skills, targets: normalizedTargets, operations };
+  // Only plain folders are offered; symlinks and files under an old name are left alone.
+  const legacySkills = [];
+  for (const target of normalizedTargets) {
+    for (const { from, to } of renamed) {
+      if (!skills.some((item) => item.name === to) || skills.some((item) => item.name === from)) continue;
+      const destination = path.join(target.directory, from);
+      const stat = await lstatOrNull(destination);
+      if (!stat || stat.isSymbolicLink() || !stat.isDirectory()) continue;
+      legacySkills.push({
+        name: from, renamedTo: to, destination, targetId: target.id, targetLabel: target.label,
+        manifest: await manifest(destination), remove: false,
+      });
+    }
+  }
+  return { repositoryRoot: root, skills, targets: normalizedTargets, operations, legacySkills };
 }
+
+const legacyChanged = async (plan) => {
+  for (const legacy of (plan.legacySkills || []).filter((item) => item.remove)) {
+    if (await existingManifest(legacy.destination) !== legacy.manifest) return legacy;
+  }
+  return null;
+};
 
 export async function applyInstallPlan(plan) {
   // Recheck the whole confirmed plan before changing any destination.
@@ -156,6 +180,8 @@ export async function applyInstallPlan(plan) {
       throw new Error(`File berubah setelah rencana dibuat. Jalankan installer lagi: ${operation.name}`);
     }
   }
+  const changedLegacy = await legacyChanged(plan);
+  if (changedLegacy) throw new Error(`File berubah setelah rencana dibuat. Jalankan installer lagi: ${changedLegacy.name}`);
   const preparedCopies = [];
   const installed = [];
   const temporaryDirectories = [];
@@ -190,9 +216,18 @@ export async function applyInstallPlan(plan) {
       if (await manifest(operation.destination) !== operation.sourceManifest) throw new Error(`Verifikasi instalasi gagal: ${operation.name}`);
       installed.push(operation);
     }
+    // Old skill names are removed only after the renamed skill is installed.
+    const removed = [];
+    const changedBeforeRemoval = await legacyChanged(plan);
+    if (changedBeforeRemoval) throw new Error(`Skill lama berubah sebelum dihapus. Jalankan installer lagi: ${changedBeforeRemoval.name}`);
+    for (const legacy of (plan.legacySkills || []).filter((item) => item.remove)) {
+      await fs.rm(legacy.destination, { recursive: true });
+      removed.push(legacy);
+    }
     return {
       installed: plan.operations.filter((item) => item.action !== 'unchanged'),
       unchanged: plan.operations.filter((item) => item.action === 'unchanged'),
+      removed,
     };
   } catch (error) {
     if (installed.length) {

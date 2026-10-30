@@ -16,7 +16,7 @@ tests/                    # node:test (*.test.mjs) and Python unittest (test_*.p
 
 Skills:
 - `commit-message-generator` — runs `git add -A` (unless `--only-staged`) and suggests a commit message; `no desc` gives subject only.
-- `mr-description` — MR/PR title and description from the last N commits.
+- `mr-synthesize` (formerly `mr-description`) — MR/PR title and description from the last N commits.
 - `ut-ranger` — writes unit tests only inside test dirs (`__tests__`), never production code; `agents/openai.yaml` holds Codex UI metadata.
 - `trivy-porter` — Trivy scan/remediation workflow split between a terminal CLI and an agent. It reuses `commit-message-generator` for its commit suggestions.
 

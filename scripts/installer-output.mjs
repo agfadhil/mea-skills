@@ -109,6 +109,23 @@ export function renderInstallSuccess(plan, result, { version, columns = 80, isTT
     add(target.label, 'heading');
     add(target.directory, 'muted', 2, true);
   }
+  const removed = result.removed || [];
+  const kept = (plan.legacySkills || []).filter((item) => !removed.includes(item));
+  if (removed.length || kept.length) {
+    add();
+    add('SKILL LAMA (BERGANTI NAMA)', 'label');
+    for (const legacy of removed) {
+      add();
+      add(`${legacy.name} → ${legacy.renamedTo} · dihapus`, 'heading');
+      add(legacy.destination, 'muted', 2, true);
+    }
+    for (const legacy of kept) {
+      add();
+      add(`${legacy.name} → ${legacy.renamedTo} · dipertahankan`, 'heading');
+      add(legacy.destination, 'muted', 2, true);
+      add('Hapus manual atau jalankan installer lagi agar tidak ada skill ganda.', 'muted', 2);
+    }
+  }
   add();
   rows.push({ divider: true });
   add();
