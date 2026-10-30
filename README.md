@@ -296,10 +296,6 @@ Verify that each installed skill folder contains a `<skill-name>/SKILL.md` file 
 
 WSL uses a Linux home directory separate from the Windows user profile. Run the installer inside the environment where the agent operates: running from WSL installs to the WSL home directory, whereas running from native Windows installs to the Windows user profile. For remote or containerized environments, verify the path read by the agent in that container. After installation, start a new agent session if changes are not detected.
 
-## Versioning
-
-The repository version lives in `package.json` and starts at `1.0.0` (run `pnpm run mea-skills:version` to print it). Every push to `main` runs [`.github/workflows/bump-version.yml`](.github/workflows/bump-version.yml), which bumps the minor version (`1.0.0` → `1.1.0` → `1.2.0` …), commits it as `chore(release): vX.Y.0 [skip ci]`, and creates a matching annotated `vX.Y.0` tag. The release commit and tag message list every commit since the previous tag, one per line as `- <subject> (<short hash>)`, skipping merge and earlier release commits. The npm `version` script runs [`scripts/sync-readme-version.mjs`](scripts/sync-readme-version.mjs) during the bump, so the "Current version" line in this README is updated in the same release commit and always matches `package.json` and the tag; the script fails the release if that line is missing. Run `git pull` after pushing to pick up the release commit. For a major release, run `npm version major` locally and push with `--follow-tags`; the next push continues from the new major (`2.0.0` → `2.1.0`).
-
 ## Testing
 
 ```sh
