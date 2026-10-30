@@ -28,7 +28,7 @@ export async function runInstaller({
   };
   try {
     const version = await readVersion(repositoryRoot).catch(() => undefined);
-    print(renderInstallerLogo({ version, platform, isTTY: output.isTTY, environment }));
+    print(renderInstallerLogo({ version, isTTY: output.isTTY, environment }));
     print();
     print('Pilih tujuan instalasi:');
     print('1. Claude, Codex, dan Antigravity (default)');

@@ -5,7 +5,6 @@ const tones = {
   label: '1;36', muted: '90', command: '1;36',
   unchanged: '32', update: '33', install: '94',
 };
-const osLabels = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 
 export const colorEnabled = ({ isTTY = false, environment = {} } = {}) =>
   !Object.hasOwn(environment, 'NO_COLOR') && environment.TERM !== 'dumb' &&
@@ -13,29 +12,29 @@ export const colorEnabled = ({ isTTY = false, environment = {} } = {}) =>
 
 export const painter = (color) => (text, tone) => color && tone ? `\x1b[${tones[tone]}m${text}\x1b[0m` : text;
 
-export function logoRows({ version, platform } = {}) {
-  const details = [
-    'Agent Skills Installer',
-    version ? `v${version}` : null,
-    platform ? (osLabels[platform] || platform) : null,
-  ].filter(Boolean).join(' · ');
+// Mirrors the README banner; the version tag is right-aligned to the end of the divider.
+const versionColumnWidth = 16;
+
+export function logoRows({ version } = {}) {
+  const tag = version ? `v${version}` : '';
+  const versionSegment = tag ? [[' '.repeat(Math.max(1, versionColumnWidth - tag.length)) + tag, 'label']] : [];
   return [
     [['╭──────────────────╮', 'frame']],
     [['│', 'frame'], ['  ███╗      ███╗  ', 'brand'], ['│', 'frame'], ['   ███╗   ███╗███████╗ █████╗', 'heading']],
     [['│', 'frame'], ['  ████╗    ████║  ', 'brand'], ['│', 'frame'], ['   ████╗ ████║██╔════╝██╔══██╗', 'heading']],
     [['│', 'frame'], ['  ██╔██╗  ██╔██║  ', 'brand'], ['│', 'frame'], ['   ██╔████╔██║█████╗  ███████║', 'heading']],
-    [['│', 'frame'], ['  ██║╚██╗██╔╝██║  ', 'brand'], ['│', 'frame'], ['   ██║ ╚═╝ ██║███████╗██║  ██║', 'heading']],
+    [['│', 'frame'], ['  ██║╚██╗██╔╝██║  ', 'brand'], ['│', 'frame'], ['   ██║ ╚═╝ ██║███████╗██║  ██║', 'heading'], ...versionSegment],
     [['│', 'frame'], ['  ██║ ╚███╔╝ ██║  ', 'brand'], ['│', 'frame'], ['   ───────────────────────────────────────────', 'border']],
     [['│', 'frame'], ['  ╚═╝  ╚══╝  ╚═╝  ', 'brand'], ['│', 'frame'], ['   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗', 'brand']],
     [['│', 'frame'], ['    ◆ SKILLS ◆    ', 'heading'], ['│', 'frame'], ['   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║', 'brand']],
     [['╰──────────────────╯', 'frame'], ['   ███████║██║  ██╗██║███████╗███████╗███████║', 'brand']],
-    [['by: Fadhil             ', 'brand'], [details, 'muted']],
+    [['by: Fadhil             ', 'brand'], ['Agent Skills with Magic and Terminal Linked', 'muted']],
   ];
 }
 
-export function renderInstallerLogo({ version, platform, isTTY = false, environment = {} } = {}) {
+export function renderInstallerLogo({ version, isTTY = false, environment = {} } = {}) {
   const paint = painter(colorEnabled({ isTTY, environment }));
-  return logoRows({ version, platform })
+  return logoRows({ version })
     .map((segments) => segments.map(([text, tone]) => paint(text, tone)).join(''))
     .join('\n');
 }

@@ -164,19 +164,19 @@ test('canceling before confirmation leaves destination directories untouched', a
   await assertNoInstallerArtifacts(setup.directory);
 });
 
-test('installer logo renders the giant monogram and stacked block typography with version and OS metadata', () => {
-  const logo = renderInstallerLogo({ version: '2.3.0', platform: 'darwin' });
+test('installer logo matches the README banner with the version right-aligned to the divider', () => {
+  const logo = renderInstallerLogo({ version: '2.3.0' });
   assert.equal(logo, [
     '╭──────────────────╮',
     '│  ███╗      ███╗  │   ███╗   ███╗███████╗ █████╗',
     '│  ████╗    ████║  │   ████╗ ████║██╔════╝██╔══██╗',
     '│  ██╔██╗  ██╔██║  │   ██╔████╔██║█████╗  ███████║',
-    '│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║',
+    '│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║          v2.3.0',
     '│  ██║ ╚███╔╝ ██║  │   ───────────────────────────────────────────',
     '│  ╚═╝  ╚══╝  ╚═╝  │   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗',
     '│    ◆ SKILLS ◆    │   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║',
     '╰──────────────────╯   ███████║██║  ██╗██║███████╗███████╗███████║',
-    'by: Fadhil             Agent Skills Installer · v2.3.0 · macOS',
+    'by: Fadhil             Agent Skills with Magic and Terminal Linked',
   ].join('\n'));
 });
 
@@ -185,7 +185,8 @@ test('next steps explain npm link for one Node.js version and terminal-link for 
   const text = renderInstallSuccess(plan, { installed: [], unchanged: [] }, { version: '2.3.0', columns: 200 });
   assert.match(text, /◆ SKILLS ◆/u);
   assert.match(text, /by: Fadhil/u);
-  assert.match(text, /Agent Skills Installer · v2\.3\.0/u);
+  assert.match(text, /██║ ╚═╝ ██║███████╗██║  ██║ +v2\.3\.0/u);
+  assert.match(text, /Agent Skills with Magic and Terminal Linked/u);
   assert.match(text, /INSTRUKSI SELANJUTNYA/u);
   assert.match(text, /satu versi Node\.js[\s\S]*npm link/u);
   assert.match(text, /beberapa versi Node\.js[\s\S]*pnpm run mea-skills:terminal-link/u);

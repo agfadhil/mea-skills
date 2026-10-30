@@ -3,6 +3,9 @@ import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { renderInstallerLogo } from '../scripts/installer-output.mjs';
+import { readVersion } from '../scripts/mea-skills-version.mjs';
 import { replaceReadmeVersion, syncReadmeVersion } from '../scripts/sync-readme-version.mjs';
 
 test('replaces only the current version line, including versions that start with a digit after the prefix', () => {
@@ -38,4 +41,11 @@ test('syncs README.md and the trivy-porter VERSION file with package.json', asyn
   assert.equal(await syncReadmeVersion(directory), '2.4.0');
   assert.equal(await fs.readFile(path.join(directory, 'README.md'), 'utf8'), 'Current version: **2.4.0**.\n');
   assert.equal(await fs.readFile(path.join(directory, 'trivy-porter', 'VERSION'), 'utf8'), '2.4.0\n');
+});
+
+test('README logo banner is identical to the installer logo for the package.json version', async () => {
+  const repositoryRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+  const readme = await fs.readFile(path.join(repositoryRoot, 'README.md'), 'utf8');
+  const banner = readme.replace(/\r\n/gu, '\n').match(/```text\n(╭[\s\S]*?)\n```/u)?.[1];
+  assert.equal(banner, renderInstallerLogo({ version: await readVersion(repositoryRoot) }));
 });
