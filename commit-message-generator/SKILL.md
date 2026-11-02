@@ -112,21 +112,66 @@ enforces. Check the following locations **in order**, stopping at the first hit:
 
 **a) commitlint configuration**
 
-Look for any of these files in the repository root:
+Look for a commitlint config in the repository root (use the same lookup order
+as commitlint itself and stop at the first hit):
 
-- `commitlint.config.js` / `commitlint.config.cjs` / `commitlint.config.mjs`
-- `commitlint.config.ts`
-- `.commitlintrc` / `.commitlintrc.json` / `.commitlintrc.yaml` / `.commitlintrc.yml`
-- `commitlint` key inside `package.json`
+1. `package.json` with a top-level `commitlint` key
+2. `.commitlintrc`, `.commitlintrc.json`, `.commitlintrc.yaml`,
+   `.commitlintrc.yml`
+3. `.commitlintrc.js`, `.commitlintrc.cjs`, `.commitlintrc.mjs`,
+   `.commitlintrc.ts`, `.commitlintrc.cts`
+4. `commitlint.config.js`, `commitlint.config.cjs`, `commitlint.config.mjs`,
+   `commitlint.config.ts`, `commitlint.config.cts`
 
-Read the file and note:
+If the invocation directory is a subfolder with its own config (monorepo
+package), that nearer config wins over the root one.
 
-- Which **preset/extends** is used (e.g., `@commitlint/config-conventional`,
-  `@commitlint/config-angular`, a custom config, etc.).
-- Any **rules overrides** — custom type enums, scope enums, max header length,
-  case rules, etc.
-- The associated **git hook** (usually `.husky/commit-msg` or
-  `.git/hooks/commit-msg`) to confirm the hook is active.
+Resolve the **effective** rules, not just the file's own overrides:
+
+- Read the config file. Never assume its contents from the filename.
+- Follow `extends` (e.g., `@commitlint/config-conventional`,
+  `@commitlint/config-angular`, a shared or relative config). Read the preset
+  from `node_modules/` when it is installed; the file's own `rules` override
+  the preset's.
+- If a local commitlint binary exists (`node_modules/.bin/commitlint`), prefer
+  `npx --no-install commitlint --print-config` to get the fully resolved rules.
+  Never let this trigger a network install; fall back to reading files if it
+  fails or is unavailable.
+- Note `parserPreset` (a custom `headerPattern` changes the required header
+  shape, e.g. a ticket id prefix) and `ignores`/`defaultIgnores`.
+- Note the associated **git hook** (usually `.husky/commit-msg` or
+  `.git/hooks/commit-msg`) to confirm commitlint is actually enforced.
+
+Rules have the form `[level, applicable, value]`. Level `2` (error) is mandatory;
+level `1` (warning) should be followed whenever possible; level `0` is disabled
+and must be ignored. `applicable` is `always` or `never` (rule negated). Map the
+common rules onto the message like this:
+
+| Rule(s)                                                     | Applies to                                      |
+| ----------------------------------------------------------- | ----------------------------------------------- |
+| `type-enum`, `type-case`, `type-empty`                      | choose only listed types; casing; type required |
+| `scope-enum`, `scope-case`, `scope-empty`                   | choose only listed scopes; casing; scope needed |
+| `subject-case`, `subject-empty`, `subject-full-stop`        | description casing, required, trailing period   |
+| `subject-min-length`, `subject-max-length`                  | description length                              |
+| `header-max-length`, `header-min-length`, `header-case`     | whole first line                                |
+| `body-leading-blank`, `body-empty`, `body-min-length`       | blank line after header; body required/length   |
+| `body-max-length`, `body-max-line-length`, `body-case`      | body size, line wrapping, casing                |
+| `footer-leading-blank`, `footer-empty`, `footer-max-*`      | footer separation, presence, length             |
+| `references-empty`, `signed-off-by`, `trailer-exists`       | issue refs / `Signed-off-by:` / required trailer |
+
+A `subject-case` of `never` with a list means every listed case is forbidden
+(e.g. `never: [sentence-case, start-case, pascal-case, upper-case]` still
+allows lowercase). Compute the allowed set; do not just guess.
+
+**These rules take precedence over every default in this skill** (the 72
+character limits, the lowercase description, the type table, bullet wrapping,
+and so on). Where the config is silent on something, fall back to the default.
+
+- Never invent values required by a rule. For `references-empty: never`, take
+  the issue/ticket id from the branch name (`git branch --show-current`) or
+  recent commits; if none can be found, omit it rather than fabricate one.
+- In `no desc` mode, still output only the subject even if a body rule such as
+  `body-empty: never` exists, because the explicit invocation wins.
 
 **b) AGENTS.md / CONTRIBUTING.md / README.md**
 
@@ -152,6 +197,7 @@ in this skill (Conventional Commits baseline).
 
 After detection, hold the resolved rules in mind for Steps 4–6. If the project
 uses a non-Conventional-Commits format, adapt all subsequent steps accordingly.
+Detection is silent: never mention the config or rules in the final output.
 
 ---
 
@@ -262,10 +308,61 @@ Print the commit message wrapped **only** inside a single markdown code block (`
 By default, the commit message must include a subject, a blank line, and a
 concise bullet-point body. If `no desc` is supplied, include only the subject.
 
-Keep the code block copy-clean so the copy button never adds a trailing
-newline: put the closing fence on the line directly after the last content
-line (the subject in `no desc` mode, otherwise the last bullet). Never leave a
-blank line, whitespace-only line, or trailing spaces before the closing fence.
+If a local commitlint binary exists, validate the drafted message before
+printing it, without touching the index or creating a commit:
+
+```sh
+printf '%s' "<message>" | npx --no-install commitlint
+```
+
+(Use `--config <file>` only if the config is not discoverable from the
+repository root.) If it reports errors, fix the message and re-validate; stop
+after a few attempts and output the best compliant draft. Skip this check
+silently when commitlint is not installed locally. Validation output must never
+appear in the final reply.
+
+#### Copy-clean output (strict)
+
+The user clicks the code block's copy button and pastes straight into a commit
+message input. The pasted text must end exactly on the last character of the
+message, with the cursor sitting right after it, not on a new line. Build the
+final block like this:
+
+1. Open the fence (` ```text `) and put the subject on the very next line. No
+   blank line or space before the subject.
+2. The last content line is the final bullet (or the subject in `no desc`
+   mode). Its last character is the last character of the message: no trailing
+   period added for style, no trailing spaces, no tab.
+3. Put the closing fence on the line **directly after** that last content line.
+   There must be no blank line, whitespace-only line, or extra newline between
+   them.
+4. No trailing spaces on any line of the message.
+5. Do not put anything after the closing fence (no sign-off, no explanation, no
+   second code block).
+
+Correct (the closing fence touches the last line):
+
+````text
+```text
+fix(auth): prevent token refresh loop
+
+- Stop retrying refresh when the server returns 401
+```
+````
+
+Wrong (a blank line before the closing fence pastes as a trailing newline):
+
+````text
+```text
+fix(auth): prevent token refresh loop
+
+- Stop retrying refresh when the server returns 401
+
+```
+````
+
+Re-check this shape just before printing; if the draft violates any point, fix
+it first.
 
 Example valid outputs for `/commit no desc`:
 
@@ -321,9 +418,14 @@ test(update-stock-merchant): improve unit tests for page and actions
    to the current directory or include unstaged content in an only-staged message.
 8. **Omitting the default description** — include a bullet-point body without
    requiring an extra parameter. Use only the subject when `no desc` is supplied.
-9. **Trailing blank line inside the code block** — the copied message must end
-   on its last content line; a blank line before the closing fence pastes as an
-   extra newline.
+9. **Trailing newline in the copied text** — the copied message must end on
+   its last character. A blank line, whitespace-only line, or trailing spaces
+   before the closing fence paste as an extra newline, and any text after the
+   fence breaks the clean copy. See "Copy-clean output (strict)" in Step 6.
+10. **Ignoring commitlint** — when a commitlint config exists, its enabled
+    rules (types, scopes, lengths, casing) override this skill's defaults. Do
+    not apply the default 72-character limit if the config allows 100, and do
+    not use a type or scope outside its enums.
 
 ---
 
@@ -334,11 +436,13 @@ test(update-stock-merchant): improve unit tests for page and actions
 /commit [--only-staged] [no desc]
 
 # What happens
-1. Resolve the repository root and detect its commit rules
+1. Resolve the repository root and detect its commit rules (commitlint config
+   first, resolving `extends`; then docs; then git history)
 2. git add -A                     → stage all, unless --only-staged
 3. git diff --staged --name-only   → list staged files
 4. git diff --staged               → full diff for analysis
-5. Infer: type, scope, description
-6. Output: ONLY one code block with the subject and bullet-point body by default;
+5. Infer: type, scope, description (within the detected commitlint rules)
+6. Validate with local commitlint if installed (silent)
+7. Output: ONLY one code block with the subject and bullet-point body by default;
    use only the one-line subject when no desc is supplied
 ```
