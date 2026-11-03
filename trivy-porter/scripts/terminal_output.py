@@ -173,6 +173,9 @@ def render_handoff(data, project, state_base, command, columns=None, is_tty=Fals
         add()
     add("LANJUT DI CHAT AGENT", "label")
     add("Buka chat pada proyek ini, lalu salin perintah di bawah.", "heading")
+    add("Malas blok dan salin teks di output ini? Jalankan perintah berikut di terminal agar perintahnya "
+        "langsung tersalin ke clipboard:", "muted")
+    add("trivy-porter --prompt", "heading", 2)
     add()
 
     def border(left, right):

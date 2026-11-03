@@ -68,6 +68,11 @@ class HandoffRenderingTests(unittest.TestCase):
             self.assertNotIn(note, panel)
             self.assertIn("  • " + note if note != "0 = semua item" else note, after)
         self.assertIn("Exit code saja", panel)
+        # The --prompt tip sits right under the "open chat" heading, inside the first panel.
+        heading = "Buka chat pada proyek ini, lalu salin perintah di bawah."
+        self.assertIn(heading, panel)
+        self.assertGreater(panel.index("trivy-porter --prompt"), panel.index(heading))
+        self.assertNotIn("trivy-porter --prompt", after)
         self.assertIn("fyi lagi:", after)
         self.assertIn("trivy-porter --clean", after)
         self.assertTrue(after.rstrip().endswith("╯"))
