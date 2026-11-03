@@ -12,6 +12,14 @@ does not change**: the user is trusting these edits to be safe to merge without
 a functional re-review, so every change must be provably behavior-preserving or
 be skipped.
 
+## Language
+
+This skill is written in English, but every message to the user while it runs
+is in **Indonesian**: the instructions to open a Sonar tab, questions, the
+analysis, progress notes, and the final report. Keep code, file paths, rule
+keys, and commands as they are. Comments added to code (such as a `NOSONAR`
+reason) follow the language already used in that file.
+
 ## Flow at a glance
 
 ```text
@@ -55,7 +63,7 @@ hit a login wall.
 2. If the agent has more than one browser, check its in-app browser first, then
    the others.
 3. **If there is no Sonar tab, stop here.** Do not guess a URL, open one, or
-   start any analysis. Tell the user, in their language, what to do, along these
+   start any analysis. Tell the user, in Indonesian, what to do, along these
    lines:
    - Open the browser pane (in-app browser) in this app.
    - Go to your SonarQube/SonarCloud project and sign in.
@@ -143,7 +151,7 @@ each file is edited once.
 
 ### Step 5 — Present the analysis and ask for the count
 
-Reply in the user's language, briefly, with:
+Reply in Indonesian, briefly, with:
 
 1. **Scope** — what the page shows (project, branch/PR, type, filters) and the
    number of issues in it.
@@ -206,7 +214,7 @@ limits.
 
 ### Step 7 — Report
 
-Reply in the user's language. Keep it scannable:
+Reply in Indonesian. Keep it scannable:
 
 1. **Scope worked on** — the page's type and filters, so the user knows which
    kind of issue this run covered.

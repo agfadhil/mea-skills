@@ -18,7 +18,7 @@ Skills:
 - `commit-message-generator` — runs `git add -A` (unless `--only-staged`) and suggests a commit message; `no desc` gives subject only.
 - `mr-synthesize` (formerly `mr-description`) — MR/PR title and description from the last N commits.
 - `ut-ranger` — writes unit tests only inside test dirs (`__tests__`), never production code; `agents/openai.yaml` holds Codex UI metadata.
-- `sonar-browser-advisor` — two phases, no arguments: analyzes the Sonar page open in the agent's own browser tab (scope = the type/filters that page shows), asks how many items to fix (`0` = all), then fixes them without changing logic; if no Sonar tab is open it tells the user to open one; skips hard issues and asks for a stronger model; never edits Sonar state or commits; may add `NOSONAR` only for verified false positives and must explain each to the user.
+- `sonar-browser-advisor` — two phases, no arguments: analyzes the Sonar page open in the agent's own browser tab (scope = the type/filters that page shows), asks how many items to fix (`0` = all), then fixes them without changing logic; if no Sonar tab is open it tells the user to open one; skips hard issues and asks for a stronger model; replies in Indonesian; never edits Sonar state or commits; may add `NOSONAR` only for verified false positives and must explain each to the user.
 - `trivy-porter` — Trivy scan/remediation workflow split between a terminal CLI and an agent. It reuses `commit-message-generator` for its commit suggestions.
 
 ## Commands
