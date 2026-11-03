@@ -13,7 +13,7 @@
 by: Fadhil             Agent Skills with Magic and Terminal Linked
 ```
 
-A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, creating unit tests without production changes, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Claude, Codex, and Antigravity (all three by default, or a single agent). Supports macOS, Linux, and Windows.
+A collection of skills to assist AI agents with writing commit messages, preparing MR/PR descriptions, creating unit tests without production changes, resolving Sonar issues without logic changes, and remediating Trivy scan findings in iterative batches. An interactive cross-platform installer copies the skills to your user directories for Claude, Codex, and Antigravity (all three by default, or a single agent). Supports macOS, Linux, and Windows.
 
 ## Getting Started
 
@@ -82,6 +82,7 @@ Open the agent chat in your working repository, then select or invoke the skill 
 | [commit-message-generator](commit-message-generator/SKILL.md) | `/commit-message-generator` | Stages all repository changes by default, then suggests a commit subject and brief bulleted body following project rules. Use `no desc` for a one-line subject; `/commit` is also supported. |
 | [mr-synthesize](mr-synthesize/SKILL.md) | `/mr-synthesize 6` | Generates an English MR/PR title and structured description from the last N commits, including commit IDs. Defaults to **1** commit if N is omitted. |
 | [ut-ranger](ut-ranger/SKILL.md) | `$ut-ranger path` or `$ut-ranger [path1, path2]` | Creates or completes unit tests only in designated test directories, verifies tests and lint, and aims for 100% coverage without changing production code. Reports multiple targets as a numbered list in input order. |
+| [sonar-browser-advisor](sonar-browser-advisor/SKILL.md) | `/sonar-browser-advisor` or `/sonar-browser-advisor 5` | Reads the SonarQube/SonarCloud issues open in the agent's own browser tab and fixes them locally without changing application logic. Handles all fixable issues by default, or stops after N resolved. Skips issues that need more effort and asks you to switch to a stronger model. Never changes anything in Sonar and never commits. Verified false positives may get a `NOSONAR` comment, which is always reported and explained. |
 | [trivy-porter](trivy-porter/SKILL.md) | `trivy-porter` in a terminal | Selects `fs` or `image` scans, flags, and severities locally, then hands the saved session to the agent for explanations and fixes. |
 | trivy-porter — analyze | `$trivy-porter analyze SESSION_ID` in the agent chat | Reads the saved scan, explains findings in Indonesian, and creates an inventory before remediation is selected. |
 | trivy-porter — continue | `$trivy-porter continue SESSION_ID` in the agent chat | Resumes a remediation batch selected in the terminal or recovers interrupted work. Defaults to one finding per batch. |
@@ -287,6 +288,7 @@ The installer only copies skill files. Agent integrations and runtime tools must
 
 - **commit-message-generator** and **mr-synthesize** require Git in the working repository.
 - **ut-ranger** uses the target repository's existing unit test runner, coverage tooling, and lint/format tools. Dependencies must already be available; the skill does not install them or change project configuration.
+- **sonar-browser-advisor** requires a browser the agent can read (its built-in/in-app browser, or Claude in Chrome) with a signed-in SonarQube/SonarCloud issues page open, plus the target repository checked out locally. It uses the repository's existing lint/type-check/test tooling when present and installs nothing.
 - **trivy-porter** requires Trivy, Git for staging/commit suggestions, and Python 3 for its interactive CLI and session state management. The Node launcher also requires Node.js 20 or later and automatically locates Python 3. Image scans require Docker in PATH, a running Docker daemon, and a project Dockerfile/build context that supports `linux/amd64`.
 - On Windows, ensure `trivy.exe` and Git are available in both the terminal and agent's PATH. Python 3 may be invoked via `python3`, `python`, or `py -3`; ensure an executable is available when running the CLI or session helper.
 
