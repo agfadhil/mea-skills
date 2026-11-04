@@ -123,6 +123,37 @@ class FindingCountTests(unittest.TestCase):
         self.assertIsNone(self.count(SUMMARY.format(vulnerabilities="0"), truncated=True))
 
 
+class SeverityCountTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.porter = load("trivy_porter")
+
+    def counts(self, raw, truncated=False):
+        return self.porter.count_severities(raw, truncated)
+
+    def test_json_counts_each_severity_and_files_unknown_values_under_unknown(self):
+        raw = json.dumps({"Results": [
+            {"Target": "a", "Vulnerabilities": [{"Severity": "CRITICAL"}, {"Severity": "HIGH"}, {"Severity": "HIGH"}],
+             "Secrets": [{"Severity": "LOW"}]},
+            {"Target": "b", "Misconfigurations": [{"Severity": "MEDIUM"}, {"Severity": "weird"}, {}]}]})
+        self.assertEqual(self.counts(raw), {"CRITICAL": 1, "HIGH": 2, "MEDIUM": 1, "LOW": 1, "UNKNOWN": 2})
+
+    def test_table_totals_are_summed_when_they_match_the_summary(self):
+        totals = ("Total: 3 (UNKNOWN: 0, LOW: 1, MEDIUM: 0, HIGH: 1, CRITICAL: 1)\n"
+                  "Tests: 9 (SUCCESSES: 8, FAILURES: 1)\n")
+        self.assertEqual(self.counts(totals + SUMMARY.format(vulnerabilities="3")),
+                         {"CRITICAL": 1, "HIGH": 1, "MEDIUM": 0, "LOW": 1, "UNKNOWN": 0})
+        # Per-level lines that disagree with the proven total are not shown at all.
+        self.assertIsNone(self.counts(totals + SUMMARY.format(vulnerabilities="4")))
+        self.assertIsNone(self.counts(SUMMARY.format(vulnerabilities="3")))
+
+    def test_unproven_totals_have_no_breakdown(self):
+        self.assertIsNone(self.counts(json.dumps({"Results": []})))
+        self.assertIsNone(self.counts(SUMMARY.format(vulnerabilities="0"), truncated=True))
+        self.assertEqual(self.counts(SUMMARY.format(vulnerabilities="0")),
+                         dict.fromkeys(("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"), 0))
+
+
 class CleanMessageTests(unittest.TestCase):
     MESSAGE = "wah sudah clean nih.. saatnya main game yak.."
 
@@ -151,6 +182,17 @@ class CleanMessageTests(unittest.TestCase):
         rendered = self.render()
         self.assertIn("Temuan: 4", rendered)
         self.assertNotIn(self.MESSAGE, rendered)
+
+    def test_severity_breakdown_follows_the_count(self):
+        self.data["scan"]["result"].update(finding_count=4, severity_counts={
+            "CRITICAL": 1, "HIGH": 2, "MEDIUM": 0, "LOW": 1, "UNKNOWN": 0})
+        rendered = self.render()
+        lines = [line.strip("│ ") for line in rendered.splitlines()]
+        start = lines.index("Temuan: 4")
+        self.assertEqual(lines[start + 1:start + 6],
+                         ["CRITICAL 1", "HIGH     2", "MEDIUM   0", "LOW      1", "UNKNOWN  0"])
+        self.data["scan"]["result"]["severity_counts"] = None
+        self.assertNotIn("CRITICAL 1", self.render())
 
     def test_unknown_count_shows_neither(self):
         del self.data["scan"]["result"]["finding_count"]

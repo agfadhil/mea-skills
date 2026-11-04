@@ -25,6 +25,26 @@ COUNT_PLACEHOLDER = "Jumlah temuan yang ingin diselesaikan: n"
 CLEAN_MESSAGE = "wah sudah clean nih.. saatnya main game yak.."
 
 
+# Trivy's severity scale, most severe first; Trivy has no separate INFO level.
+SEVERITY_LEVELS = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
+
+
+# Chat-only remediation filter; the agent reads it, Trivy never sees it.
+SEVERITY_FOCUS_HINT = ("Hanya ingin mengerjakan severity tertentu? Tambahkan --severity:CRITICAL di akhir "
+                       "perintah (beberapa sekaligus: --severity:CRITICAL,HIGH); agent hanya akan "
+                       "mengerjakan temuan dengan severity tersebut.")
+
+
+def offers_severity_focus(data):
+    """Offer the focus only when the scan kept every severity and the handoff can still take a new scope."""
+    scan = data.get("scan") if isinstance(data.get("scan"), dict) else {}
+    result = scan.get("result") if isinstance(scan.get("result"), dict) else {}
+    request = data.get("batch_request") or {}
+    fresh_scope = (data.get("stage") == "awaiting_analysis"
+                   or (data.get("stage") != "batch_in_progress" and request.get("status") == "pending"))
+    return scan.get("severity") in (None, "ALL") and result.get("finding_count") != 0 and fresh_scope
+
+
 def progress_frame(label, tick, elapsed, cells=20, block=3):
     """One frame of an indeterminate bar: a block of # bouncing across the track."""
     span = cells - block
@@ -149,6 +169,12 @@ def render_handoff(data, project, state_base, command, columns=None, is_tty=Fals
         count = result.get("finding_count")
         if isinstance(count, int) and not isinstance(count, bool):
             add("Temuan: " + str(count), "heading")
+            severities = result.get("severity_counts")
+            if isinstance(severities, dict) and all(isinstance(severities.get(name), int)
+                                                    for name in SEVERITY_LEVELS):
+                for name in SEVERITY_LEVELS:
+                    urgent = name in ("CRITICAL", "HIGH") and severities[name] > 0
+                    add(f"{name:<9}{severities[name]}", "warning" if urgent else "muted", 2)
         if scan.get("target"):
             add("Target: " + str(scan["target"]), "muted", preserve_whitespace=True)
     add()
@@ -217,6 +243,8 @@ def render_handoff(data, project, state_base, command, columns=None, is_tty=Fals
     if analysis:
         bullet("Ganti n dengan jumlah temuan yang ingin diperbaiki; 0 = semua item langsung dikerjakan.",
                'Hapus "' + COUNT_PLACEHOLDER + '" jika hanya ingin analisis.')
+    if offers_severity_focus(data):
+        bullet(SEVERITY_FOCUS_HINT)
     bullet("Tambahkan --project PATH jika chat agent tidak dibuka di folder proyek yang discan.")
     bullet("Kirim secara manual; terminal tidak mengirim pesan ke chat.")
     add()

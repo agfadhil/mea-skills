@@ -164,7 +164,7 @@ def chat_command(data, root, base):
 
 
 def latest_chat_command(project, state_dir=None, session_id=None):
-    """Read-only: rebuild the handoff line of the latest (or chosen) session."""
+    """Read-only: rebuild the handoff line of the latest (or chosen) session, with its data."""
     root, base, directory = store.project_context(project, state_dir)
     sessions = store.load_sessions(directory, root)
     if session_id:
@@ -177,7 +177,7 @@ def latest_chat_command(project, state_dir=None, session_id=None):
         if not candidates:
             raise CliError("Belum ada sesi dengan perintah chat untuk folder ini. Jalankan trivy-porter untuk scan baru.")
     data = max(candidates, key=lambda item: (item["updated_at"], item["session_id"]))
-    return chat_command(data, root, base)
+    return chat_command(data, root, base), data
 
 
 def copy_to_clipboard(text):
@@ -709,6 +709,9 @@ def sanitize_stderr(raw):
     return "\n".join(lines) + ("\n" if lines else "[Tidak ada diagnostic standar tersimpan.]\n")
 
 
+FINDING_KINDS = ("Vulnerabilities", "Misconfigurations", "Secrets", "Licenses")
+
+
 def count_findings(raw, truncated=False):
     """Findings the raw report proves, or None when it cannot tell (nothing scanned, custom format)."""
     if truncated:
@@ -722,8 +725,7 @@ def count_findings(raw, truncated=False):
         if not isinstance(results, list) or not results:
             return None
         return sum(len(item[key]) for item in results if isinstance(item, dict)
-                   for key in ("Vulnerabilities", "Misconfigurations", "Secrets", "Licenses")
-                   if isinstance(item.get(key), list))
+                   for key in FINDING_KINDS if isinstance(item.get(key), list))
     lines = strip_terminal_controls(raw).splitlines()
     start = next((index for index, line in enumerate(lines) if "Report Summary" in line), None)
     if start is None:
@@ -738,6 +740,31 @@ def count_findings(raw, truncated=False):
     # Trivy marks scanned-and-clean cells "0" and not-scanned cells "-".
     counts = [int(cell) for row in rows[1:] for cell in row[2:] if cell.isdigit()]
     return sum(counts) if counts else None
+
+
+def count_severities(raw, truncated=False):
+    """Findings per Trivy severity, or None unless they add up to the proven total."""
+    total = count_findings(raw, truncated)
+    if total is None:
+        return None
+    counts = dict.fromkeys(terminal_output.SEVERITY_LEVELS, 0)
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        for item in data["Results"]:
+            for key in FINDING_KINDS if isinstance(item, dict) else ():
+                for finding in item.get(key) if isinstance(item.get(key), list) else ():
+                    severity = finding.get("Severity") if isinstance(finding, dict) else None
+                    counts[severity if severity in counts else "UNKNOWN"] += 1
+    else:
+        # Table output: each findings table has "Total: N (UNKNOWN: 0, LOW: 1, ...)" or "Failures: N (...)".
+        for match in re.finditer(r"\b(?:Total|Failures): \d+ \(([^)]*)\)", strip_terminal_controls(raw)):
+            for name, value in re.findall(r"([A-Z]+): (\d+)", match.group(1)):
+                if name in counts:
+                    counts[name] += int(value)
+    return counts if sum(counts.values()) == total else None
 
 
 def capture_process(argv, cwd, label=None):
@@ -1050,7 +1077,8 @@ def run_scan(session, trivy, supported_flags=None):
     scan["result"] = {"stdout_path": str(stdout_path), "stderr_path": str(stderr_path),
                       "exit_code": exit_code, "interrupted": interrupted, "truncated": any(truncated),
                       "format": output_format, "source": source, "sanitized": True, "run_id": run_id,
-                      "finding_count": count_findings(raw[0], truncated[0])}
+                      "finding_count": count_findings(raw[0], truncated[0]),
+                      "severity_counts": count_severities(raw[0], truncated[0])}
     session.data["stage"] = "scan_failed" if local_image and not valid_json else "awaiting_analysis"
     session.data["pending_question"] = "scan" if local_image and not valid_json else None
     session.save()
@@ -1160,11 +1188,13 @@ def main(argv=None):
         if args.all_sessions and args.session:
             raise CliError("Pilih salah satu: --session ID atau --all.")
         if args.prompt:
-            command = latest_chat_command(args.project, args.state_dir, args.session)
+            command, data = latest_chat_command(args.project, args.state_dir, args.session)
             print(command, flush=True)
             # Status goes to stderr so stdout stays exactly the copyable line.
             print("Disalin ke clipboard; tinggal tempel di chat agent." if copy_to_clipboard(command)
                   else "Clipboard tidak tersedia; salin perintah di atas secara manual.", file=sys.stderr)
+            if terminal_output.offers_severity_focus(data):
+                print(terminal_output.SEVERITY_FOCUS_HINT, file=sys.stderr)
             return 0
         if args.version:
             print(f"mea-skills v{mea_skills_version()}")

@@ -151,7 +151,7 @@ $trivy-porter analyze SESSION_ID Jumlah temuan yang ingin diselesaikan: n
 
 The panel ends with a reminder that `trivy-porter --clean` clears local Trivy Porter data.
 
-While Trivy (or the local Docker build) runs in an interactive terminal, a moving `###` bar with the elapsed seconds shows that it is still working; it is cleared when the process ends and never printed to pipes or dumb terminals. When the report proves the number of findings, the panel shows `Temuan: N`; the count is stored as `finding_count` in the session result. If it is `0` after a complete, unfiltered scan (exit code 0, no severity filter, no `--ignore-unfixed`, no inherited ignore/config files), the panel also says the project is clean. Trivy's `-` cells mean "not scanned", so a report with nothing scanned shows no count and no clean message.
+While Trivy (or the local Docker build) runs in an interactive terminal, a moving `###` bar with the elapsed seconds shows that it is still working; it is cleared when the process ends and never printed to pipes or dumb terminals. When the report proves the number of findings, the panel shows `Temuan: N`, followed by the count per Trivy severity (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `UNKNOWN`; Trivy has no separate INFO level) when the report proves those too. They are stored as `finding_count` and `severity_counts` in the session result. The agent's analysis also opens with this per-severity summary. If the count is `0` after a complete, unfiltered scan (exit code 0, no severity filter, no `--ignore-unfixed`, no inherited ignore/config files), the panel also says the project is clean. Trivy's `-` cells mean "not scanned", so a report with nothing scanned shows no count and no clean message.
 
 The completion panel separates the scan process outcome, saved session details, and next step. It adapts to terminal width and uses color when supported, respecting `NO_COLOR`. The complete copyable chat command appears outside the panel without inserted line breaks. A saved report still needs agent assessment of findings and coverage; an exit code alone is not that assessment.
 
@@ -226,7 +226,16 @@ $trivy-porter analyze d53a4b51f61b4f1ebb7e4c391f073182 Jumlah temuan yang ingin 
 
 Later stages produce the matching `$trivy-porter continue SESSION_ID` line, and `--project`/`--state-dir` overrides are included exactly as the handoff panel prints them. Sessions still being configured or with a failed scan never showed a handoff and are skipped; use `--session SESSION_ID` to pick a specific session. Stdout contains only the command line; the clipboard status goes to stderr. Copying uses `pbcopy` on macOS, `clip` on Windows, and `wl-copy`, `xclip` or `xsel` on Linux; if none works, the line is still printed for manual copying. The command only reads saved sessions: it creates no files, runs no scan, and does not send the chat message.
 
-Replace `n` before sending: `0` analyzes and handles all unresolved findings in the same request, a positive integer limits the requested batch, and removing the count text requests analysis only. In all mode, the agent must not stop after the first related group or ask for the same count again. The literal `n`, a negative value, a fraction, or an absent count does not authorize remediation. All mode preserves honest blockers and verification limits; newly discovered findings outside the selected inventory need a fresh request.
+Replace `n` before sending: `0` analyzes and handles all unresolved findings in the same request, a positive integer limits the requested batch, and removing the count text requests analysis only.
+
+When the scan covered every severity, both the handoff panel and `--prompt` (on stderr) explain that you can append a severity focus so the agent only works on those findings:
+
+```text
+$trivy-porter analyze SESSION_ID Jumlah temuan yang ingin diselesaikan: 0 --severity:CRITICAL
+$trivy-porter continue SESSION_ID --severity:CRITICAL,HIGH
+```
+
+The focus applies to that one request. It is not passed to Trivy: the analysis still lists every finding, and verification rescans with the original scan settings. In all mode, the agent must not stop after the first related group or ask for the same count again. The literal `n`, a negative value, a fraction, or an absent count does not authorize remediation. All mode preserves honest blockers and verification limits; newly discovered findings outside the selected inventory need a fresh request.
 
 `--clean` immediately removes the entire `.trivy-porter` folder in the terminal's current directory, including all partitions and unknown contents, without another confirmation. It does not use the storage environment override and cannot be combined with `--state-dir`, `--session`, `--all`, another action, or a different `--project`. A missing folder is a no-op; linked or mounted storage, an active scan/batch, or an ongoing state write is refused. Export before cleanup if you need the evidence. The default exported file in Downloads remains available after cleanup, as do files outside `.trivy-porter`, including user-selected Trivy output files.
 

@@ -81,6 +81,27 @@ class HandoffRenderingTests(unittest.TestCase):
         self.assertNotIn("Jumlah temuan", later)
         self.assertNotIn("fyi:\n", later)
 
+    def test_severity_focus_hint_only_when_every_severity_was_scanned_and_scope_is_open(self):
+        hint = "--severity:CRITICAL"
+        _, _, after = self.render(columns=200).partition("SALIN KE CHAT")
+        self.assertIn(hint, after)
+        cases = {
+            "filtered scan": lambda d: d["scan"].update(severity="HIGH"),
+            "zero findings": lambda d: d["scan"]["result"].update(finding_count=0),
+            "recovery": lambda d: d.update(stage="batch_in_progress", batch_request={"status": "pending"}),
+            "no pending request": lambda d: d.update(stage="awaiting_batch"),
+        }
+        for name, change in cases.items():
+            with self.subTest(name):
+                original, self.data = self.data, copy.deepcopy(self.data)
+                try:
+                    change(self.data)
+                    self.assertNotIn(hint, self.render(columns=200))
+                finally:
+                    self.data = original
+        self.data.update(stage="awaiting_batch", batch_request={"status": "pending"})
+        self.assertIn(hint, self.render(columns=200))
+
     def test_rendering_preserves_scan_evidence_and_exposes_the_saved_exit_status(self):
         self.data["scan"]["result"].update(exit_code=7, interrupted=True, truncated=True)
         before = copy.deepcopy(self.data)
