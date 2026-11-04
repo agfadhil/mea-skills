@@ -231,8 +231,8 @@ Replace `n` before sending: `0` analyzes and handles all unresolved findings in 
 When the scan covered every severity, both the handoff panel and `--prompt` (on stderr) explain that you can append a severity focus so the agent only works on those findings:
 
 ```text
-$trivy-porter analyze SESSION_ID Jumlah temuan yang ingin diselesaikan: 0 --severity:CRITICAL
-$trivy-porter continue SESSION_ID --severity:CRITICAL,HIGH
+$trivy-porter analyze SESSION_ID Jumlah temuan yang ingin diselesaikan: 0 --severity=CRITICAL
+$trivy-porter continue SESSION_ID --severity=CRITICAL,HIGH
 ```
 
 The focus applies to that one request. It is not passed to Trivy: the analysis still lists every finding, and verification rescans with the original scan settings. In all mode, the agent must not stop after the first related group or ask for the same count again. The literal `n`, a negative value, a fraction, or an absent count does not authorize remediation. All mode preserves honest blockers and verification limits; newly discovered findings outside the selected inventory need a fresh request.

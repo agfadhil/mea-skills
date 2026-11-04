@@ -30,8 +30,8 @@ SEVERITY_LEVELS = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
 
 
 # Chat-only remediation filter; the agent reads it, Trivy never sees it.
-SEVERITY_FOCUS_HINT = ("Hanya ingin mengerjakan severity tertentu? Tambahkan --severity:CRITICAL di akhir "
-                       "perintah (beberapa sekaligus: --severity:CRITICAL,HIGH); agent hanya akan "
+SEVERITY_FOCUS_HINT = ("Hanya ingin mengerjakan severity tertentu? Tambahkan --severity=CRITICAL di akhir "
+                       "perintah (beberapa sekaligus: --severity=CRITICAL,HIGH); agent hanya akan "
                        "mengerjakan temuan dengan severity tersebut.")
 
 

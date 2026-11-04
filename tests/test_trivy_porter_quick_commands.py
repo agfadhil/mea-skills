@@ -100,7 +100,7 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
                 self.assertEqual(copied.read_text(encoding="utf-8"), result.stdout.rstrip("\n"))
                 self.assertIn("clipboard", result.stderr)
                 # The severity focus hint is stderr-only, so the copied line stays exact.
-                self.assertIn("--severity:CRITICAL", result.stderr)
+                self.assertIn("--severity=CRITICAL", result.stderr)
         result = self.run_cli("", "-p", "--session", older["session_id"])
         self.assertEqual(result.stdout, self.handoff_line(older) + "\n")
         self.assertEqual(self.calls(), [])
@@ -113,7 +113,7 @@ class QuickCommandsIntegrationTests(unittest.TestCase):
         result = self.run_cli("", "--prompt")
         self.assertEqual(result.stdout, self.handoff_line(batch) + "\n")
         self.assertTrue(result.stdout.startswith("$trivy-porter continue " + batch["session_id"]))
-        self.assertNotIn("--severity:", result.stderr)
+        self.assertNotIn("--severity=", result.stderr)
 
     @unittest.skipIf(os.name == "nt", "Fake clipboard tools are POSIX scripts")
     def test_prompt_still_prints_when_the_clipboard_fails(self):

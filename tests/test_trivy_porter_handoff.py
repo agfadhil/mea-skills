@@ -82,7 +82,7 @@ class HandoffRenderingTests(unittest.TestCase):
         self.assertNotIn("fyi:\n", later)
 
     def test_severity_focus_hint_only_when_every_severity_was_scanned_and_scope_is_open(self):
-        hint = "--severity:CRITICAL"
+        hint = "--severity=CRITICAL"
         _, _, after = self.render(columns=200).partition("SALIN KE CHAT")
         self.assertIn(hint, after)
         cases = {
