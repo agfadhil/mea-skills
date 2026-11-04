@@ -5,7 +5,7 @@
 │  ███╗      ███╗  │   ███╗   ███╗███████╗ █████╗
 │  ████╗    ████║  │   ████╗ ████║██╔════╝██╔══██╗
 │  ██╔██╗  ██╔██║  │   ██╔████╔██║█████╗  ███████║
-│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║         v2.14.0
+│  ██║╚██╗██╔╝██║  │   ██║ ╚═╝ ██║███████╗██║  ██║         v2.15.0
 │  ██║ ╚███╔╝ ██║  │   ───────────────────────────────────────────
 │  ╚═╝  ╚══╝  ╚═╝  │   ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗
 │    ◆ SKILLS ◆    │   ╚════██║██╔═██╗ ██║██║     ██║     ╚════██║
@@ -23,7 +23,7 @@ Ensure **Node.js 20 or later** and **pnpm** are installed, then run from the roo
 pnpm run mea-skills:install
 ```
 
-Current version: **2.14.0**. Check the installed repository version at any time with:
+Current version: **2.15.0**. Check the installed repository version at any time with:
 
 ```sh
 pnpm run mea-skills:version
